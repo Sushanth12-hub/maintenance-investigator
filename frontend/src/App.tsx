@@ -1,23 +1,21 @@
-﻿import { useState } from "react";
+﻿import React, { useState } from "react";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  AlertTriangle,
-  ShieldCheck,
+  AlertOctagon,
+  ShieldAlert,
   Play,
   CheckCircle2,
   ChevronRight,
   X,
-  Cpu,
   FileDown,
-  Eye,
   Activity,
-  Check,
-  Zap,
-  Terminal,
+  Maximize2,
+  Lock,
   Layers,
-  Crosshair,
-  Radio
+  Cpu,
+  RefreshCw,
+  Compass
 } from "lucide-react";
 import {
   LineChart,
@@ -27,48 +25,49 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
-  AreaChart,
-  Area
+  CartesianGrid
 } from "recharts";
 
-const AGENT_STEPS = [
-  { id: "01", name: "Telemetry Ingestion", detail: "Parsing 24h SCADA CSV & computing RMS velocity and polyfit slope" },
-  { id: "02", name: "OEM & Work-Order Extraction", detail: "PyMuPDF parsing ISO 10816-3 thresholds & shift turnover logs" },
-  { id: "03", name: "Multimodal Vision Agent", detail: "Optical scan of bearing flange, seal lip, and coupling guard" },
-  { id: "04", name: "Contradiction Cross-Exam", detail: "Correlating human claims against sensor telemetry facts" },
-  { id: "05", name: "Safety Synthesis", detail: "Compiling mandatory LOTO isolation rules & PTW Class A permit" }
+const PIPELINE_STAGES = [
+  { id: "S1", title: "SCADA Telemetry", desc: "Pure NumPy velocity & polyfit thermal slope" },
+  { id: "S2", title: "PyMuPDF Extraction", desc: "ISO 10816-3 limits & technician shift logs" },
+  { id: "S3", title: "Multimodal Vision", desc: "Housing optical anomalies & weepage detection" },
+  { id: "S4", title: "Contradiction Engine", desc: "Cross-correlating human vs sensor facts" },
+  { id: "S5", title: "Safety Synthesis", desc: "Mandatory LOTO & PTW Class A isolation gating" }
 ];
 
 export default function App() {
   const [selectedAsset, setSelectedAsset] = useState<string>("P-204");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
+  const [pipelineProgress, setPipelineProgress] = useState(0);
   const [activeMetric, setActiveMetric] = useState<any>(null);
+  const [activeVisualDefect, setActiveVisualDefect] = useState<number | null>(null);
 
   const runInvestigation = async (asset = selectedAsset) => {
     setLoading(true);
-    setCurrentStep(0);
+    setPipelineProgress(1);
 
-    const interval = setInterval(() => {
-      setCurrentStep((prev) => (prev < AGENT_STEPS.length - 1 ? prev + 1 : prev));
-    }, 500);
+    const timer = setInterval(() => {
+      setPipelineProgress((p) => (p < PIPELINE_STAGES.length ? p + 1 : p));
+    }, 450);
 
     try {
       const [response] = await Promise.all([
         axios.post(`http://localhost:8000/api/investigate/run?asset=${asset}`),
-        new Promise((resolve) => setTimeout(resolve, 2600))
+        new Promise((resolve) => setTimeout(resolve, 2300))
       ]);
       setData(response.data);
     } catch (err) {
-      alert("Error reaching backend at http://localhost:8000. Ensure uvicorn is running.");
+      alert("Unable to reach backend at http://localhost:8000. Ensure uvicorn is running.");
     } finally {
-      clearInterval(interval);
+      clearInterval(timer);
       setLoading(false);
+      setPipelineProgress(0);
     }
   };
 
-  const handleAssetChange = (assetId: string) => {
+  const handleAssetSelect = (assetId: string) => {
     setSelectedAsset(assetId);
     runInvestigation(assetId);
   };
@@ -77,663 +76,590 @@ export default function App() {
     window.open(`http://localhost:8000/api/investigate/report?asset=${selectedAsset}`, "_blank");
   };
 
-  const getStatusBadge = (status: string, text: string) => {
-    let colorClass = "bg-emerald-400 text-emerald-300 border-emerald-500/30";
-    let dotClass = "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]";
+  const renderStatusCell = (status: string, label: string) => {
+    let style = "bg-emerald-500/10 text-emerald-400 border-emerald-500/30";
+    let icon = "●";
 
     if (status === "NEUTRAL") {
-      colorClass = "bg-amber-400/10 text-amber-300 border-amber-500/30";
-      dotClass = "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]";
-    }
-    if (status === "CONTRADICT") {
-      colorClass = "bg-rose-500/10 text-rose-300 border-rose-500/30";
-      dotClass = "bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.8)]";
+      style = "bg-amber-500/10 text-amber-400 border-amber-500/30";
+      icon = "▲";
+    } else if (status === "CONTRADICT") {
+      style = "bg-rose-500/10 text-rose-400 border-rose-500/30";
+      icon = "■";
     }
 
     return (
-      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[10px] font-mono ${colorClass}`}>
-        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClass}`}></span>
-        <span>{text}</span>
+      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[10px] font-mono tracking-tight ${style}`}>
+        <span className="text-[7px]">{icon}</span>
+        <span className="truncate max-w-[130px]">{label}</span>
       </span>
     );
   };
 
   return (
-    <div className="min-h-screen bg-[#070B12] text-slate-200 flex font-sans selection:bg-teal-500 selection:text-black antialiased relative overflow-x-hidden">
-      {/* Background Cyber Grid */}
-      <div className="fixed inset-0 bg-[linear-gradient(to_right,#0e1726_1px,transparent_1px),linear-gradient(to_bottom,#0e1726_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] pointer-events-none opacity-40" />
-
-      {/* Mission Control Sidebar */}
-      <aside className="w-72 bg-[#0B111E]/90 backdrop-blur-xl border-r border-slate-800/80 p-6 flex flex-col justify-between shrink-0 relative z-20 shadow-2xl">
-        <div className="space-y-6">
-          {/* Header Brand */}
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <div className="w-2.5 h-2.5 rounded-full bg-teal-400 shadow-[0_0_12px_#14b8a6] animate-pulse" />
-              <span className="font-mono font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-teal-400 via-cyan-200 to-blue-400 text-sm">
-                SIH // 26117
-              </span>
-            </div>
-            <h1 className="text-xs tracking-wider uppercase text-slate-400 font-mono font-medium">
-              Autonomous Plant Investigator
-            </h1>
-          </div>
-
-          {/* Asset Selection Switcher */}
-          <div className="bg-[#0E1626] p-1.5 rounded-xl border border-slate-800">
-            <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono mb-2 px-2 pt-1 font-semibold flex items-center justify-between">
-              Target Machine
-              <Radio className="w-3 h-3 text-teal-400 animate-pulse" />
+    <div className="min-h-screen bg-[#07090E] text-slate-200 flex flex-col antialiased selection:bg-cyan-500 selection:text-black">
+      {/* Industrial Top Navigation Bar */}
+      <header className="h-14 bg-[#0B0E14] border-b border-[#1A2234] px-6 flex items-center justify-between z-30 sticky top-0">
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2.5">
+            <div className="w-2 h-2 rounded-sm bg-cyan-400 shadow-[0_0_8px_#06b6d4]" />
+            <span className="font-mono text-xs font-bold tracking-widest text-slate-100">
+              SIH-26117 <span className="text-slate-500">/</span> INDUSTRIAL INCIDENT INVESTIGATOR
             </span>
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                onClick={() => handleAssetChange("P-204")}
-                className={`relative py-2 px-3 text-xs font-mono font-bold rounded-lg transition-all cursor-pointer ${
-                  selectedAsset === "P-204"
-                    ? "bg-gradient-to-r from-teal-500 to-cyan-600 text-black shadow-[0_0_15px_rgba(20,184,166,0.5)]"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800/50"
-                }`}
-              >
-                PUMP P-204
-              </button>
-              <button
-                onClick={() => handleAssetChange("P-101")}
-                className={`relative py-2 px-3 text-xs font-mono font-bold rounded-lg transition-all cursor-pointer ${
-                  selectedAsset === "P-101"
-                    ? "bg-gradient-to-r from-teal-500 to-cyan-600 text-black shadow-[0_0_15px_rgba(20,184,166,0.5)]"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800/50"
-                }`}
-              >
-                PUMP P-101
-              </button>
-            </div>
           </div>
 
-          {/* Active Asset Spec Card */}
-          <div className="bg-[#0E1626]/70 backdrop-blur-md rounded-xl p-4 border border-slate-800/80 space-y-3">
-            <div className="flex justify-between items-start">
-              <div>
-                <span className="text-[9px] font-mono text-teal-400 uppercase tracking-wider">Asset Registry</span>
-                <p className="font-bold text-white text-sm">
-                  {selectedAsset === "P-204" ? "Boiler Feed Pump P-204" : "Crude Transfer Pump P-101"}
-                </p>
-              </div>
-              <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/30">
-                ONLINE
-              </span>
-            </div>
+          <div className="h-4 w-px bg-[#1A2234]" />
 
-            <div className="space-y-1.5 text-[11px] font-mono text-slate-400 border-t border-slate-800/80 pt-2">
-              <div className="flex justify-between">
-                <span>Domain Standard:</span>
-                <span className="text-slate-200">ISO 10816-3</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Permit Tier:</span>
-                <span className="text-amber-300">PTW Class A/B</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Telemetry Window:</span>
-                <span className="text-slate-200">24h SCADA</span>
-              </div>
-            </div>
-
-            <div className="text-[10px] font-mono text-slate-500 space-y-1 border-t border-slate-800/80 pt-2">
-              <div className="truncate text-teal-400/80">▸ {selectedAsset === "P-204" ? "WO-204-8821_shiftlog.pdf" : "WO-101-4412_shiftlog.pdf"}</div>
-              <div className="truncate text-cyan-400/80">▸ {selectedAsset === "P-204" ? "OEM_P204_limits.pdf" : "OEM_P101_limits.pdf"}</div>
-              <div className="truncate text-blue-400/80">▸ {selectedAsset === "P-204" ? "P204_sensor_24h.csv" : "P101_sensor_24h.csv"}</div>
-              {selectedAsset === "P-204" && <div className="truncate text-purple-400/80">▸ P204_bearing_housing.jpg</div>}
-            </div>
+          {/* Asset Selector Tabs */}
+          <div className="flex items-center bg-[#111622] p-0.5 rounded border border-[#1A2234]">
+            <button
+              onClick={() => handleAssetSelect("P-204")}
+              className={`px-3 py-1 text-xs font-mono rounded transition-all cursor-pointer ${
+                selectedAsset === "P-204"
+                  ? "bg-[#1E2638] text-cyan-300 font-bold border border-cyan-500/30 shadow-xs"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              PUMP P-204 (FEEDWATER)
+            </button>
+            <button
+              onClick={() => handleAssetSelect("P-101")}
+              className={`px-3 py-1 text-xs font-mono rounded transition-all cursor-pointer ${
+                selectedAsset === "P-101"
+                  ? "bg-[#1E2638] text-cyan-300 font-bold border border-cyan-500/30 shadow-xs"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              PUMP P-101 (CRUDE TRANSFER)
+            </button>
           </div>
         </div>
 
-        {/* Sidebar Actions */}
-        <div className="space-y-2.5 pt-4">
+        {/* Global Action Toolbar */}
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] font-mono text-slate-400 bg-[#111622] border border-[#1A2234] px-2.5 py-1 rounded flex items-center gap-1.5">
+            <Lock className="w-3 h-3 text-amber-400" />
+            LOTO ISOLATION: PENDING VERIFICATION
+          </span>
+
           {data && (
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+            <button
               onClick={openAuditReport}
-              className="w-full bg-[#131F33] hover:bg-[#1A2A45] text-teal-300 border border-teal-500/30 font-mono text-xs py-2.5 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer font-bold"
+              className="h-8 px-3 rounded bg-[#111622] hover:bg-[#182030] text-slate-200 border border-[#1A2234] text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
             >
-              <FileDown className="w-4 h-4" />
-              FORENSIC AUDIT PDF
-            </motion.button>
+              <FileDown className="w-3.5 h-3.5 text-cyan-400" />
+              LEGAL AUDIT PDF
+            </button>
           )}
 
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+          <button
             onClick={() => runInvestigation()}
             disabled={loading}
-            className="w-full relative overflow-hidden bg-gradient-to-r from-teal-400 via-cyan-500 to-blue-600 text-black font-mono font-black py-3 rounded-xl flex items-center justify-center gap-2 text-xs shadow-[0_0_25px_rgba(20,184,166,0.4)] transition-all disabled:opacity-50 cursor-pointer"
+            className="h-8 px-4 rounded bg-cyan-600 hover:bg-cyan-500 text-black font-mono font-bold text-xs flex items-center gap-2 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
           >
-            <Zap className="w-4 h-4 fill-black" />
-            {loading ? "CORRELATING AGENTS..." : "START INVESTIGATION"}
-          </motion.button>
+            {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-black" />}
+            {loading ? "CORRELATING..." : "RUN INVESTIGATION"}
+          </button>
         </div>
-      </aside>
+      </header>
 
-      {/* Main Workspace */}
-      <main className="flex-1 p-8 overflow-y-auto relative z-10">
-        {!data ? (
-          <div className="h-full min-h-[70vh] flex flex-col items-center justify-center">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.4 }}
-              className="bg-[#0B111E]/80 border border-slate-800 rounded-2xl p-12 text-center max-w-lg shadow-2xl relative overflow-hidden backdrop-blur-xl"
-            >
-              <div className="w-16 h-16 mx-auto rounded-2xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400 mb-6 shadow-[0_0_20px_rgba(20,184,166,0.2)]">
-                <Crosshair className="w-8 h-8 animate-spin-slow" />
-              </div>
-              <h2 className="text-xl font-mono font-bold text-white mb-2">Investigation Engine Standby</h2>
-              <p className="text-xs text-slate-400 leading-relaxed font-mono mb-6">
-                Deterministic cross-examination agents ready to evaluate SCADA vibrations, PDF work-orders, and multimodal optics.
-              </p>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => runInvestigation()}
-                className="bg-gradient-to-r from-teal-400 to-cyan-500 text-black font-mono font-black px-6 py-3 rounded-xl text-xs shadow-[0_0_20px_rgba(20,184,166,0.4)] cursor-pointer"
-              >
-                INITIALIZE AGENTS ({selectedAsset})
-              </motion.button>
-            </motion.div>
-          </div>
-        ) : (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, staggerChildren: 0.1 }}
-            className="space-y-6 max-w-6xl mx-auto"
-          >
-            {/* Top Stat Bar / KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <motion.div
-                whileHover={{ y: -2 }}
-                onClick={() => setActiveMetric(data.metrics.peak_vibration)}
-                className="relative overflow-hidden bg-[#0B111E]/90 border border-rose-500/40 rounded-2xl p-5 shadow-[0_0_25px_rgba(244,63,94,0.1)] cursor-pointer backdrop-blur-md group"
-              >
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 to-orange-500" />
-                <div className="flex justify-between items-center text-xs font-mono text-slate-400">
-                  <span className="uppercase tracking-wider flex items-center gap-1.5">
-                    <Activity className="w-3.5 h-3.5 text-rose-400" />
-                    {data.metrics.peak_vibration.name}
-                  </span>
-                  <span className="flex items-center text-[10px] text-teal-400 font-bold group-hover:translate-x-1 transition-transform">
-                    AUDIT TRACE <ChevronRight className="w-3 h-3 ml-0.5" />
-                  </span>
-                </div>
-                <div className="flex items-baseline justify-between mt-3">
-                  <div className="text-4xl font-black font-mono text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-orange-400">
-                    {data.metrics.peak_vibration.value}{" "}
-                    <span className="text-base text-slate-400 font-normal">{data.metrics.peak_vibration.unit}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="inline-block text-[10px] font-mono bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2.5 py-1 rounded-full font-bold shadow-[0_0_10px_rgba(244,63,94,0.3)]">
-                      BREACH &gt; {data.metrics.peak_vibration.threshold} mm/s
-                    </span>
-                    <span className="block text-[9px] font-mono text-slate-500 mt-1">ISO 10816-3 Alarm</span>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                whileHover={{ y: -2 }}
-                onClick={() => setActiveMetric(data.metrics.temperature_rate_of_rise)}
-                className={`relative overflow-hidden bg-[#0B111E]/90 border rounded-2xl p-5 backdrop-blur-md cursor-pointer group ${
-                  data.metrics.temperature_rate_of_rise.breached
-                    ? "border-amber-500/40 shadow-[0_0_25px_rgba(245,158,11,0.1)]"
-                    : "border-emerald-500/40 shadow-[0_0_25px_rgba(16,185,129,0.1)]"
-                }`}
-              >
-                <div
-                  className={`absolute top-0 left-0 right-0 h-1 ${
-                    data.metrics.temperature_rate_of_rise.breached
-                      ? "bg-gradient-to-r from-amber-500 to-yellow-500"
-                      : "bg-gradient-to-r from-emerald-500 to-teal-500"
-                  }`}
-                />
-                <div className="flex justify-between items-center text-xs font-mono text-slate-400">
-                  <span className="uppercase tracking-wider flex items-center gap-1.5">
-                    <Activity className={`w-3.5 h-3.5 ${data.metrics.temperature_rate_of_rise.breached ? "text-amber-400" : "text-emerald-400"}`} />
-                    {data.metrics.temperature_rate_of_rise.name}
-                  </span>
-                  <span className="flex items-center text-[10px] text-teal-400 font-bold group-hover:translate-x-1 transition-transform">
-                    AUDIT TRACE <ChevronRight className="w-3 h-3 ml-0.5" />
-                  </span>
-                </div>
-                <div className="flex items-baseline justify-between mt-3">
-                  <div
-                    className={`text-4xl font-black font-mono text-transparent bg-clip-text ${
-                      data.metrics.temperature_rate_of_rise.breached
-                        ? "bg-gradient-to-r from-amber-400 to-yellow-300"
-                        : "bg-gradient-to-r from-emerald-400 to-teal-300"
-                    }`}
-                  >
-                    +{data.metrics.temperature_rate_of_rise.value}{" "}
-                    <span className="text-base text-slate-400 font-normal">{data.metrics.temperature_rate_of_rise.unit}</span>
-                  </div>
-                  <div className="text-right">
-                    <span
-                      className={`inline-block text-[10px] font-mono px-2.5 py-1 rounded-full font-bold border ${
-                        data.metrics.temperature_rate_of_rise.breached
-                          ? "bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-[0_0_10px_rgba(245,158,11,0.3)]"
-                          : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.3)]"
-                      }`}
-                    >
-                      {data.metrics.temperature_rate_of_rise.breached ? "THERMAL DRIFT SPIKE" : "THERMAL STABLE (COUPLING)"}
-                    </span>
-                    <span className="block text-[9px] font-mono text-slate-500 mt-1">Threshold: 0.50 °C/h</span>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-
-            {/* AI Executive Synthesis Terminal Card */}
-            {data.ai_summary && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="bg-[#0B111E]/95 border border-cyan-500/30 rounded-2xl p-5 shadow-2xl relative overflow-hidden backdrop-blur-xl"
-              >
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee] animate-pulse" />
-                    <Cpu className="w-4 h-4 text-cyan-400" />
-                    <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-slate-200">
-                      Technical Executive Synthesis
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-mono bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded">
-                    {data.ai_summary.source}
-                  </span>
-                </div>
-                <p className="text-xs font-mono text-slate-300 leading-relaxed">
-                  {data.ai_summary.narrative}
-                </p>
-              </motion.div>
-            )}
-
-            {/* Multimodal Vision Inspection HUD (With Laser Radar Scan) */}
-            {data.vision && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="bg-[#0B111E]/95 border border-slate-800 rounded-2xl p-6 shadow-2xl relative overflow-hidden"
-              >
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-                  <div className="flex items-center gap-2">
-                    <Eye className="w-4 h-4 text-teal-400" />
-                    <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-slate-200">
-                      Multimodal Optical Scanner (Drive End)
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-mono text-slate-400 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-full">
-                    {data.vision.equipment_identified} ({data.vision.resolution})
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-                  {/* Image with Laser Scanner Animation */}
-                  <div className="relative rounded-xl overflow-hidden border border-cyan-500/40 bg-black shadow-[0_0_20px_rgba(6,182,212,0.15)] group">
-                    <img
-                      src="http://localhost:8000/demo-data/P204_bearing_housing.jpg"
-                      alt="Drive-End Bearing Housing"
-                      className="w-full h-48 object-cover opacity-85 group-hover:opacity-100 transition-opacity"
-                    />
-                    {/* Laser Scanner Bar */}
-                    <motion.div
-                      animate={{ y: [0, 180, 0] }}
-                      transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                      className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_12px_#22d3ee] pointer-events-none"
-                    />
-                    {/* Visual Bounding Box Overlay */}
-                    <div className="absolute inset-8 border border-dashed border-rose-500/80 rounded bg-rose-500/10 pointer-events-none flex flex-col justify-between p-1.5">
-                      <span className="text-[8px] font-mono font-black text-rose-400 bg-black/80 px-1 rounded w-max">
-                        DEFECT_ROI #01
-                      </span>
-                      <span className="text-[8px] font-mono text-amber-300 bg-black/80 px-1 rounded w-max self-end">
-                        CONF: 88%
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Anomaly Badges */}
-                  <div className="md:col-span-2 space-y-2.5">
-                    {data.vision.visual_anomalies.map((ano: any, idx: number) => (
-                      <div
-                        key={idx}
-                        className="bg-[#0E1626]/80 border border-slate-800/80 rounded-xl p-3 flex justify-between items-start hover:border-slate-700 transition-colors"
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs font-bold text-slate-200 uppercase">
-                              {ano.region.replace(/_/g, " ")}
-                            </span>
-                            <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30 font-bold">
-                              {ano.severity} SEVERITY
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-400 font-mono">{ano.finding}</p>
-                        </div>
-                        <span className="text-[11px] font-mono font-bold text-teal-300 bg-teal-500/10 border border-teal-500/30 px-2 py-0.5 rounded">
-                          {Math.round(ano.confidence * 100)}% CONF
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Glowing Recharts Vibration Timeline */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="bg-[#0B111E]/95 border border-slate-800 rounded-2xl p-6 shadow-2xl relative"
-            >
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-teal-400" />
-                    SCADA Telemetry Stream vs ISO / OEM Envelope
-                  </h3>
-                  <span className="text-[10px] font-mono text-slate-500">
-                    Source: {data.citations.sensor}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 text-xs font-mono">
-                  <span className="flex items-center gap-1.5 text-rose-400">
-                    <span className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_#f43f5e]" /> Vibration (mm/s)
-                  </span>
-                  <span className="flex items-center gap-1.5 text-slate-500">
-                    <span className="w-3 h-0.5 bg-rose-500 stroke-dasharray" /> Limit ({data.metrics.peak_vibration.threshold})
-                  </span>
-                </div>
-              </div>
-
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={data.telemetry_series || []}>
-                    <defs>
-                      <linearGradient id="colorVib" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#f43f5e" stopOpacity={0.0} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="time" stroke="#475569" fontSize={11} fontFamily="monospace" />
-                    <YAxis stroke="#475569" fontSize={11} domain={[0, 11]} fontFamily="monospace" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "#0B111E",
-                        borderColor: "#334155",
-                        borderRadius: "8px",
-                        fontFamily: "monospace",
-                        fontSize: "12px",
-                        color: "#E2E8F0"
-                      }}
-                    />
-                    <ReferenceLine
-                      y={data.metrics.peak_vibration.threshold}
-                      stroke="#ef4444"
-                      strokeDasharray="4 4"
-                      label={{
-                        value: `OEM LIMIT (${data.metrics.peak_vibration.threshold} mm/s)`,
-                        fill: "#ef4444",
-                        fontSize: 10,
-                        fontFamily: "monospace"
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="vibration"
-                      stroke="#f43f5e"
-                      strokeWidth={2.5}
-                      fillOpacity={1}
-                      fill="url(#colorVib)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </motion.div>
-
-            {/* Contradiction Detection Alarm Card */}
-            {data.contradictions.map((c: any) => (
-              <motion.div
-                key={c.id}
-                initial={{ scale: 0.98 }}
-                animate={{ scale: 1 }}
-                className="bg-rose-950/20 border-l-4 border-l-rose-500 border-y border-r border-rose-500/30 rounded-r-2xl p-5 shadow-[0_0_30px_rgba(244,63,94,0.15)]"
-              >
-                <div className="flex items-center gap-2 text-rose-400 font-mono font-bold text-xs uppercase tracking-wider mb-3">
-                  <AlertTriangle className="w-4 h-4 animate-bounce" />
-                  EVIDENCE DISCREPANCY & CONTRADICTION DETECTED
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
-                  <div className="bg-[#0B111E]/80 border border-slate-800 p-3 rounded-xl">
-                    <span className="text-slate-500 block uppercase text-[9px] mb-1">Human Shift Claim</span>
-                    <p className="text-slate-300 italic">"{c.human_claim}"</p>
-                    <span className="text-[9px] text-teal-400 block mt-2">Ref: {c.sources[0]}</span>
-                  </div>
-                  <div className="bg-[#0B111E]/80 border border-slate-800 p-3 rounded-xl">
-                    <span className="text-slate-500 block uppercase text-[9px] mb-1">Calibrated SCADA Telemetry</span>
-                    <p className="text-rose-300 font-bold">{c.objective_claim}</p>
-                    <span className="text-[9px] text-teal-400 block mt-2">Ref: {c.sources[1]}</span>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-
-            {/* Competing Hypotheses Cards */}
-            <div className="space-y-3">
-              <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-slate-400">
-                Competing Root-Cause Hypotheses
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {data.hypotheses.map((hyp: any) => (
-                  <div
-                    key={hyp.id}
-                    className={`rounded-2xl p-5 border backdrop-blur-md flex flex-col justify-between ${
-                      hyp.status === "CONFIRMED_PRIMARY"
-                        ? "bg-[#0E1B29] border-teal-500/50 shadow-[0_0_25px_rgba(20,184,166,0.15)]"
-                        : "bg-[#0B111E] border-slate-800/80"
-                    }`}
-                  >
-                    <div>
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-mono text-[10px] font-bold text-slate-500">{hyp.id}</span>
-                        <span
-                          className={`text-[10px] font-mono font-black px-2 py-0.5 rounded-full border ${
-                            hyp.status === "CONFIRMED_PRIMARY"
-                              ? "bg-teal-500/20 text-teal-300 border-teal-500/40 shadow-[0_0_10px_rgba(20,184,166,0.3)]"
-                              : "bg-slate-800 text-slate-400 border-slate-700"
-                          }`}
-                        >
-                          {hyp.score}% CONFIDENCE
-                        </span>
-                      </div>
-                      <h4 className="font-mono text-sm font-bold text-white mb-3">{hyp.title}</h4>
-                      <ul className="space-y-1.5 text-xs font-mono text-slate-300">
-                        {hyp.reasons.map((r: string, idx: number) => (
-                          <li key={idx} className="flex items-start gap-2">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-teal-400 shrink-0 mt-0.5" />
-                            <span>{r}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div className="mt-4 pt-3 border-t border-slate-800/80 flex justify-between items-center text-[10px] font-mono">
-                      <span className="text-slate-500">Status: {hyp.status}</span>
-                      <span className="text-teal-400">{hyp.supporting_evidence.length} Evidence Vectors</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Interactive 2D Evidence Matrix */}
-            {data.evidence_matrix && (
-              <div className="bg-[#0B111E]/95 border border-slate-800 rounded-2xl p-6 shadow-2xl overflow-x-auto">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-cyan-400" />
-                    Cross-Examination Evidence Matrix (2D)
-                  </h3>
-                  <span className="text-[10px] font-mono text-slate-500">Deterministic Multi-Source Validation</span>
-                </div>
-                <table className="w-full text-left text-xs font-mono border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-slate-500 uppercase text-[10px]">
-                      <th className="p-3">Failure Mode</th>
-                      <th className="p-3">Photo Optics</th>
-                      <th className="p-3">Turnover Log</th>
-                      <th className="p-3">OEM Spec</th>
-                      <th className="p-3">SCADA Stream</th>
-                      <th className="p-3">Asset History</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {data.evidence_matrix.map((row: any, i: number) => (
-                      <tr key={i} className="hover:bg-slate-900/50 transition-colors">
-                        <td className="p-3 font-bold text-slate-200">{row.mode}</td>
-                        <td className="p-3">{getStatusBadge(row.photo.status, row.photo.text)}</td>
-                        <td className="p-3">{getStatusBadge(row.report.status, row.report.text)}</td>
-                        <td className="p-3">{getStatusBadge(row.manual.status, row.manual.text)}</td>
-                        <td className="p-3">{getStatusBadge(row.csv.status, row.csv.text)}</td>
-                        <td className="p-3">{getStatusBadge(row.history.status, row.history.text)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Safety-Gated Action Plan */}
-            <div className="bg-[#0B111E]/95 border border-slate-800 rounded-2xl p-6 shadow-2xl">
-              <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-slate-200 mb-4 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-amber-400" />
-                Safety-Gated Action Plan & LOTO Rules
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {data.inspection_plan.map((item: any, idx: number) => (
-                  <div key={idx} className="bg-[#0E1626]/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
-                    <div>
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-mono text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded">
-                          {item.priority}
-                        </span>
-                        <span className="font-mono text-[10px] text-slate-400">{item.permit_type}</span>
-                      </div>
-                      <h4 className="font-mono text-sm font-bold text-white mb-1">{item.title}</h4>
-                      <p className="text-xs font-mono text-slate-400 mb-3">{item.description}</p>
-                    </div>
-                    <div className="space-y-1.5 border-t border-slate-800 pt-3">
-                      {item.safety_controls.map((ctrl: string, cIdx: number) => (
-                        <div key={cIdx} className="flex items-center gap-2 text-[11px] font-mono text-slate-300">
-                          <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                          <span>{ctrl}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <footer className="text-center text-[10px] font-mono text-slate-600 pt-6 pb-4 border-t border-slate-900">
-              Deterministic Decision Support Prototype // SIH 26117 // Qualified plant engineer LOTO permit mandatory
-            </footer>
-          </motion.div>
-        )}
-      </main>
-
-      {/* Cyber Multi-Agent Live Execution Modal */}
+      {/* Inline Telemetry Pipeline Progress Banner */}
       <AnimatePresence>
         {loading && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="bg-[#0D121C] border-b border-cyan-500/30 px-6 py-2.5 flex items-center justify-between font-mono text-xs overflow-hidden"
           >
-            <motion.div
-              initial={{ scale: 0.9, y: 10 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 10 }}
-              className="bg-[#0B111E] border border-teal-500/40 rounded-2xl p-6 max-w-lg w-full shadow-[0_0_50px_rgba(20,184,166,0.2)]"
-            >
-              <div className="flex items-center gap-3 mb-5 border-b border-slate-800 pb-4">
-                <div className="w-3 h-3 rounded-full bg-teal-400 animate-ping" />
-                <div>
-                  <h3 className="font-mono text-sm font-bold text-white uppercase tracking-wider">
-                    Multi-Agent Pipeline Executing
-                  </h3>
-                  <p className="text-[10px] font-mono text-teal-400">Deterministic Cross-Examination Engine</p>
+            <div className="flex items-center gap-3">
+              <RefreshCw className="w-3.5 h-3.5 text-cyan-400 animate-spin" />
+              <span className="text-cyan-300 font-bold uppercase tracking-wider">
+                Multi-Agent Synthesis Pipeline Running:
+              </span>
+              <span className="text-slate-300">
+                {PIPELINE_STAGES[pipelineProgress - 1]?.desc || "Initializing agents..."}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {PIPELINE_STAGES.map((s, idx) => (
+                <div
+                  key={s.id}
+                  className={`px-2 py-0.5 rounded text-[10px] border transition-colors ${
+                    idx + 1 < pipelineProgress
+                      ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
+                      : idx + 1 === pipelineProgress
+                      ? "bg-cyan-400 text-black font-bold border-cyan-300"
+                      : "bg-[#111622] text-slate-500 border-[#1A2234]"
+                  }`}
+                >
+                  {s.id}
                 </div>
-              </div>
-
-              <div className="space-y-3 font-mono">
-                {AGENT_STEPS.map((step, idx) => {
-                  const isCompleted = idx < currentStep;
-                  const isCurrent = idx === currentStep;
-
-                  return (
-                    <motion.div
-                      key={step.id}
-                      animate={{ x: isCurrent ? 4 : 0 }}
-                      className={`flex items-start gap-3 p-2.5 rounded-xl border transition-all text-xs ${
-                        isCurrent
-                          ? "bg-teal-950/30 border-teal-500/50 text-teal-200"
-                          : isCompleted
-                          ? "bg-slate-900/40 border-slate-800 text-slate-400"
-                          : "border-transparent text-slate-600"
-                      }`}
-                    >
-                      <span
-                        className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5 ${
-                          isCompleted
-                            ? "bg-teal-500 text-black font-black"
-                            : isCurrent
-                            ? "border border-teal-400 text-teal-400 animate-pulse"
-                            : "border border-slate-800 text-slate-700"
-                        }`}
-                      >
-                        {isCompleted ? <Check className="w-3 h-3 stroke-[3]" /> : step.id}
-                      </span>
-                      <div>
-                        <div className="font-bold text-slate-200">{step.name}</div>
-                        <div className="text-[10px] text-slate-400 leading-tight mt-0.5">{step.detail}</div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </motion.div>
+              ))}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Slide-over Audit Trace Drawer with Spring Physics */}
+      {/* Main Workspace Layout */}
+      <main className="flex-1 p-6 max-w-[1600px] w-full mx-auto space-y-6">
+        {!data ? (
+          <div className="h-[75vh] rounded border border-dashed border-[#1A2234] flex flex-col items-center justify-center p-8 text-center bg-[#0B0E14]/40">
+            <div className="w-12 h-12 rounded bg-[#111622] border border-[#1A2234] flex items-center justify-center text-slate-400 mb-4">
+              <Compass className="w-6 h-6 stroke-[1.5]" />
+            </div>
+            <h3 className="font-mono text-sm font-bold text-slate-200 uppercase tracking-wider mb-1">
+              Industrial Forensic Pipeline Standby
+            </h3>
+            <p className="text-xs text-slate-400 max-w-md mb-6 leading-relaxed">
+              Synthesize SCADA telemetry, operator shift turnovers, ISO alarm limits, and multimodal imaging for {selectedAsset}.
+            </p>
+            <button
+              onClick={() => runInvestigation()}
+              className="bg-cyan-600 hover:bg-cyan-500 text-black font-mono font-bold px-5 py-2.5 rounded text-xs transition-colors cursor-pointer"
+            >
+              EXECUTE PIPELINE [{selectedAsset}]
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Top Operational Status Bar */}
+            <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* Metric 1: Peak Vibration */}
+              <div
+                onClick={() => setActiveMetric(data.metrics.peak_vibration)}
+                className="bg-[#0B0E14] border border-[#1A2234] hover:border-rose-500/50 rounded p-4 cursor-pointer transition-all group"
+              >
+                <div className="flex justify-between items-center text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1">
+                  <span>{data.metrics.peak_vibration.name}</span>
+                  <span className="text-cyan-400 group-hover:translate-x-0.5 transition-transform flex items-center">
+                    TRACE <ChevronRight className="w-3 h-3 ml-0.5" />
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between mt-2">
+                  <div className="text-3xl font-mono font-bold text-rose-400">
+                    {data.metrics.peak_vibration.value}{" "}
+                    <span className="text-xs text-slate-400 font-normal">{data.metrics.peak_vibration.unit}</span>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30">
+                    LIMIT: {data.metrics.peak_vibration.threshold} mm/s
+                  </span>
+                </div>
+                <div className="mt-2 text-[10px] font-mono text-slate-500 border-t border-[#141A28] pt-1.5 flex justify-between">
+                  <span>ISO 10816-3 Zone:</span>
+                  <span className="text-rose-400 font-bold">Zone D (Unacceptable)</span>
+                </div>
+              </div>
+
+              {/* Metric 2: Thermal Rate of Rise */}
+              <div
+                onClick={() => setActiveMetric(data.metrics.temperature_rate_of_rise)}
+                className="bg-[#0B0E14] border border-[#1A2234] hover:border-amber-500/50 rounded p-4 cursor-pointer transition-all group"
+              >
+                <div className="flex justify-between items-center text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1">
+                  <span>{data.metrics.temperature_rate_of_rise.name}</span>
+                  <span className="text-cyan-400 group-hover:translate-x-0.5 transition-transform flex items-center">
+                    TRACE <ChevronRight className="w-3 h-3 ml-0.5" />
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between mt-2">
+                  <div className={`text-3xl font-mono font-bold ${data.metrics.temperature_rate_of_rise.breached ? "text-amber-400" : "text-emerald-400"}`}>
+                    +{data.metrics.temperature_rate_of_rise.value}{" "}
+                    <span className="text-xs text-slate-400 font-normal">{data.metrics.temperature_rate_of_rise.unit}</span>
+                  </div>
+                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                    data.metrics.temperature_rate_of_rise.breached
+                      ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                      : "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                  }`}>
+                    {data.metrics.temperature_rate_of_rise.breached ? "THERMAL DRIFT" : "STABLE"}
+                  </span>
+                </div>
+                <div className="mt-2 text-[10px] font-mono text-slate-500 border-t border-[#141A28] pt-1.5 flex justify-between">
+                  <span>Threshold Criterion:</span>
+                  <span className="text-slate-300">0.50 °C/h</span>
+                </div>
+              </div>
+
+              {/* Metric 3: Diagnosed Cause */}
+              <div className="bg-[#0B0E14] border border-[#1A2234] rounded p-4 flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block mb-1">
+                    Confirmed Diagnosis
+                  </span>
+                  <div className="font-bold text-sm text-slate-100 mt-1 line-clamp-1">
+                    {data.hypotheses[0]?.title}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-[10px] font-mono border-t border-[#141A28] pt-1.5 mt-2">
+                  <span className="text-slate-500">Confidence Score:</span>
+                  <span className="text-cyan-400 font-bold">{data.hypotheses[0]?.score}% LIKELIHOOD</span>
+                </div>
+              </div>
+
+              {/* Metric 4: Mandated Isolation */}
+              <div className="bg-[#0B0E14] border border-[#1A2234] rounded p-4 flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block mb-1">
+                    Isolation Requirement
+                  </span>
+                  <div className="font-bold text-sm text-amber-400 mt-1 flex items-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4 shrink-0 text-amber-400" />
+                    LOTO MCC Breaker Lock
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-[10px] font-mono border-t border-[#141A28] pt-1.5 mt-2">
+                  <span className="text-slate-500">Permit Class:</span>
+                  <span className="text-slate-200 font-bold">{data.inspection_plan[0]?.permit_type}</span>
+                </div>
+              </div>
+            </section>
+
+            {/* Technical Executive Brief */}
+            {data.ai_summary && (
+              <section className="bg-[#0B0E14] border-l-2 border-l-cyan-500 border-y border-r border-[#1A2234] rounded-r p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Cpu className="w-4 h-4 text-cyan-400" />
+                    <span className="font-mono text-xs font-bold uppercase tracking-wider text-slate-200">
+                      Technical Executive Synthesis
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono text-slate-500 bg-[#111622] px-2 py-0.5 rounded border border-[#1A2234]">
+                    Engine: {data.ai_summary.source}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                  {data.ai_summary.narrative}
+                </p>
+              </section>
+            )}
+
+            {/* Main Investigation Split */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Left Column (8 of 12) */}
+              <div className="lg:col-span-8 space-y-6">
+                {/* Visual NDT Inspection */}
+                {data.vision && (
+                  <section className="bg-[#0B0E14] border border-[#1A2234] rounded p-5">
+                    <div className="flex items-center justify-between pb-3 mb-4 border-b border-[#1A2234]">
+                      <div className="flex items-center gap-2">
+                        <Maximize2 className="w-4 h-4 text-cyan-400" />
+                        <span className="font-mono text-xs font-bold uppercase tracking-wider text-slate-200">
+                          Non-Destructive Optical Inspection (Drive End)
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-400 bg-[#111622] px-2.5 py-1 rounded border border-[#1A2234]">
+                        {data.vision.equipment_identified} ({data.vision.resolution})
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
+                      <div className="md:col-span-5 relative rounded overflow-hidden border border-[#1E2638] bg-black">
+                        <img
+                          src="http://localhost:8000/demo-data/P204_bearing_housing.jpg"
+                          alt="Drive-End Bearing Housing Inspection"
+                          className="w-full h-44 object-cover opacity-90"
+                        />
+                        <div className="absolute inset-4 border border-rose-500/70 border-dashed rounded flex flex-col justify-between p-1.5 pointer-events-none">
+                          <span className="text-[8px] font-mono bg-black/90 text-rose-300 px-1 py-0.5 rounded w-max border border-rose-500/40">
+                            ROI_DEFECT: FLANGE_SEAL
+                          </span>
+                          <span className="text-[8px] font-mono bg-black/90 text-slate-300 px-1 py-0.5 rounded w-max self-end border border-slate-700">
+                            COORD: [150, 100, 450, 300]
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="md:col-span-7 space-y-2.5">
+                        {data.vision.visual_anomalies.map((ano: any, idx: number) => (
+                          <div
+                            key={idx}
+                            onClick={() => setActiveVisualDefect(idx)}
+                            className={`p-3 rounded border text-xs cursor-pointer transition-all ${
+                              activeVisualDefect === idx
+                                ? "bg-[#111827] border-cyan-500 text-slate-100"
+                                : "bg-[#0E121B] border-[#1A2234] text-slate-300 hover:border-[#2A3650]"
+                            }`}
+                          >
+                            <div className="flex justify-between items-start mb-1">
+                              <span className="font-mono font-bold text-slate-200 capitalize text-[11px]">
+                                {ano.region.replace(/_/g, " ")}
+                              </span>
+                              <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${
+                                ano.severity === "HIGH"
+                                  ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
+                                  : "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                              }`}>
+                                {ano.severity} SEVERITY
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 leading-relaxed font-sans">{ano.finding}</p>
+                            <div className="mt-2 pt-1.5 border-t border-[#161D2C] flex justify-between items-center text-[10px] font-mono text-slate-500">
+                              <span>Confidence Metric:</span>
+                              <span className="text-cyan-400 font-bold">{Math.round(ano.confidence * 100)}% Match</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {/* Calibrated SCADA Vibration Profile */}
+                <section className="bg-[#0B0E14] border border-[#1A2234] rounded p-5">
+                  <div className="flex items-center justify-between pb-3 mb-4 border-b border-[#1A2234]">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-cyan-400" />
+                        <span className="font-mono text-xs font-bold uppercase tracking-wider text-slate-200">
+                          24-Hour Calibrated SCADA Vibration Profile
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-500">
+                        Signal Stream: {data.citations.sensor}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-4 text-[11px] font-mono">
+                      <div className="flex items-center gap-1.5 text-slate-300">
+                        <span className="w-2.5 h-2.5 rounded-sm bg-cyan-400" /> Velocity (mm/s)
+                      </div>
+                      <div className="flex items-center gap-1.5 text-rose-400">
+                        <span className="w-3 h-0.5 bg-rose-500" /> OEM Trip Threshold ({data.metrics.peak_vibration.threshold})
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="h-60 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={data.telemetry_series || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#161D2C" />
+                        <XAxis dataKey="time" stroke="#475569" fontSize={10} fontFamily="monospace" tickLine={false} />
+                        <YAxis stroke="#475569" fontSize={10} domain={[0, 11]} fontFamily="monospace" tickLine={false} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "#0B0E14",
+                            borderColor: "#2A3650",
+                            borderRadius: "4px",
+                            fontSize: "11px",
+                            fontFamily: "monospace",
+                            color: "#F1F5F9"
+                          }}
+                        />
+                        <ReferenceLine
+                          y={data.metrics.peak_vibration.threshold}
+                          stroke="#EF4444"
+                          strokeDasharray="4 4"
+                          label={{
+                            value: `TRIP: ${data.metrics.peak_vibration.threshold} mm/s`,
+                            fill: "#EF4444",
+                            fontSize: 10,
+                            fontFamily: "monospace",
+                            position: "insideTopLeft"
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="vibration"
+                          stroke="#0EA5E9"
+                          strokeWidth={2}
+                          dot={{ r: 3, fill: "#0EA5E9" }}
+                          activeDot={{ r: 5 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </section>
+
+                {/* 2D Evidence Matrix */}
+                {data.evidence_matrix && (
+                  <section className="bg-[#0B0E14] border border-[#1A2234] rounded p-5 overflow-x-auto">
+                    <div className="flex items-center justify-between pb-3 mb-3 border-b border-[#1A2234]">
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-cyan-400" />
+                        <span className="font-mono text-xs font-bold uppercase tracking-wider text-slate-200">
+                          Cross-Examination Evidence Matrix (Multi-Source Verification)
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-500">
+                        ISO 10816-3 & Human Log Plausibility
+                      </span>
+                    </div>
+
+                    <table className="w-full text-left text-xs font-mono border-collapse">
+                      <thead>
+                        <tr className="border-b border-[#1A2234] text-slate-400 uppercase text-[10px]">
+                          <th className="py-2.5 px-3">Failure Mode Modeled</th>
+                          <th className="py-2.5 px-3">Photo Optics</th>
+                          <th className="py-2.5 px-3">Shift Log</th>
+                          <th className="py-2.5 px-3">OEM Spec</th>
+                          <th className="py-2.5 px-3">CSV Stream</th>
+                          <th className="py-2.5 px-3">Turnover History</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#141A28]">
+                        {data.evidence_matrix.map((row: any, i: number) => (
+                          <tr key={i} className="hover:bg-[#111622]/60 transition-colors">
+                            <td className="py-3 px-3 font-bold text-slate-200">{row.mode}</td>
+                            <td className="py-3 px-3">{renderStatusCell(row.photo.status, row.photo.text)}</td>
+                            <td className="py-3 px-3">{renderStatusCell(row.report.status, row.report.text)}</td>
+                            <td className="py-3 px-3">{renderStatusCell(row.manual.status, row.manual.text)}</td>
+                            <td className="py-3 px-3">{renderStatusCell(row.csv.status, row.csv.text)}</td>
+                            <td className="py-3 px-3">{renderStatusCell(row.history.status, row.history.text)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </section>
+                )}
+              </div>
+
+              {/* Right Column (4 of 12) */}
+              <div className="lg:col-span-4 space-y-6">
+                {/* Contradiction Alert Card */}
+                {data.contradictions.map((c: any) => (
+                  <div
+                    key={c.id}
+                    className="bg-[#120B0D] border-l-4 border-l-rose-500 border-y border-r border-rose-900/40 rounded-r p-4"
+                  >
+                    <div className="flex items-center gap-2 text-rose-400 font-mono font-bold text-xs uppercase tracking-wider mb-2">
+                      <AlertOctagon className="w-4 h-4 text-rose-500 shrink-0" />
+                      EVIDENCE DISCREPANCY DETECTED
+                    </div>
+
+                    <div className="space-y-3 text-xs font-mono">
+                      <div className="bg-[#0B0E14] border border-rose-950/60 p-2.5 rounded">
+                        <span className="text-slate-500 uppercase text-[9px] block">Operator Written Log</span>
+                        <p className="text-slate-300 italic mt-0.5">"{c.human_claim}"</p>
+                        <span className="text-[9px] text-cyan-400 block mt-1.5">Source: {c.sources[0]}</span>
+                      </div>
+
+                      <div className="bg-[#0B0E14] border border-rose-950/60 p-2.5 rounded">
+                        <span className="text-slate-500 uppercase text-[9px] block">Deterministic Telemetry</span>
+                        <p className="text-rose-300 font-bold mt-0.5">{c.objective_claim}</p>
+                        <span className="text-[9px] text-cyan-400 block mt-1.5">Source: {c.sources[1]}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Ranked Competing Hypotheses */}
+                <section className="bg-[#0B0E14] border border-[#1A2234] rounded p-4 space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-[#1A2234]">
+                    <span className="font-mono text-xs font-bold uppercase tracking-wider text-slate-200">
+                      Ranked Root Causes
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-500">Bayesian Ranking</span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {data.hypotheses.map((hyp: any) => (
+                      <div
+                        key={hyp.id}
+                        className={`p-3 rounded border transition-all ${
+                          hyp.status === "CONFIRMED_PRIMARY"
+                            ? "bg-[#0E1624] border-cyan-500/50"
+                            : "bg-[#0B0E14] border-[#1A2234]"
+                        }`}
+                      >
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="font-mono text-[10px] text-slate-400 font-bold">{hyp.id}</span>
+                          <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${
+                            hyp.status === "CONFIRMED_PRIMARY"
+                              ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
+                              : "bg-slate-800 text-slate-400 border-slate-700"
+                          }`}>
+                            {hyp.score}% CONFIDENCE
+                          </span>
+                        </div>
+
+                        <h4 className="font-bold text-xs text-slate-200 mb-2">{hyp.title}</h4>
+
+                        <ul className="space-y-1.5 text-[11px] text-slate-400 font-sans">
+                          {hyp.reasons.map((r: string, idx: number) => (
+                            <li key={idx} className="flex items-start gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400 shrink-0 mt-0.5" />
+                              <span>{r}</span>
+                            </li>
+                          ))}
+                        </ul>
+
+                        <div className="mt-3 pt-2 border-t border-[#161D2C] flex justify-between text-[10px] font-mono text-slate-500">
+                          <span>Status: {hyp.status}</span>
+                          <span>{hyp.supporting_evidence.length} Corroborating Vectors</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                {/* Safety-Gated Action Plan */}
+                <section className="bg-[#0B0E14] border border-[#1A2234] rounded p-4 space-y-3">
+                  <div className="flex items-center gap-2 pb-2 border-b border-[#1A2234]">
+                    <ShieldAlert className="w-4 h-4 text-amber-400" />
+                    <span className="font-mono text-xs font-bold uppercase tracking-wider text-slate-200">
+                      Mandatory LOTO & Safety Controls
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {data.inspection_plan.map((item: any, idx: number) => (
+                      <div key={idx} className="p-3 bg-[#0E121B] border border-[#1A2234] rounded space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="font-mono text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                            {item.priority}
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400">{item.permit_type}</span>
+                        </div>
+
+                        <h5 className="font-bold text-xs text-slate-200">{item.title}</h5>
+                        <p className="text-[11px] text-slate-400 font-sans">{item.description}</p>
+
+                        <div className="pt-2 border-t border-[#161D2C] space-y-1">
+                          {item.safety_controls.map((ctrl: string, cIdx: number) => (
+                            <div key={cIdx} className="flex items-center gap-1.5 text-[10px] font-mono text-slate-300">
+                              <Lock className="w-3 h-3 text-amber-400 shrink-0" />
+                              <span>{ctrl}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            <footer className="text-center text-[10px] font-mono text-slate-500 pt-6 pb-2 border-t border-[#1A2234]">
+              PROTOTYPE DECISION SUPPORT ONLY // CERTIFIED PLANT ENGINEER REVIEW & LOTO PERMIT ISSUANCE MANDATORY
+            </footer>
+          </div>
+        )}
+      </main>
+
+      {/* Engineer Calculation Trace Drawer */}
       <AnimatePresence>
         {activeMetric && (
           <motion.div
-            initial={{ x: 380, opacity: 0 }}
+            initial={{ x: 420, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            exit={{ x: 380, opacity: 0 }}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 w-96 h-full bg-[#0B111E]/95 backdrop-blur-2xl shadow-[-20px_0_40px_rgba(0,0,0,0.8)] border-l border-teal-500/30 p-6 flex flex-col justify-between z-50 font-mono"
+            exit={{ x: 420, opacity: 0 }}
+            transition={{ type: "spring", damping: 28, stiffness: 240 }}
+            className="fixed right-0 top-0 w-96 h-full bg-[#0B0E14] border-l border-[#1E2638] shadow-2xl p-6 flex flex-col justify-between z-50 font-mono"
           >
             <div className="space-y-6">
-              <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+              <div className="flex justify-between items-center pb-4 border-b border-[#1A2234]">
                 <div>
-                  <span className="text-[9px] text-teal-400 uppercase tracking-widest block font-bold">Forensic Proof</span>
-                  <h3 className="font-bold text-white text-sm">Deterministic Calculation Trace</h3>
+                  <span className="text-[9px] text-cyan-400 uppercase tracking-widest block font-bold">
+                    Audit Verification
+                  </span>
+                  <h3 className="font-bold text-slate-100 text-sm">Deterministic Mathematical Trace</h3>
                 </div>
                 <button
                   onClick={() => setActiveMetric(null)}
-                  className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 hover:text-white cursor-pointer"
+                  className="w-7 h-7 rounded bg-[#111622] border border-[#1A2234] flex items-center justify-center text-slate-400 hover:text-white cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -741,41 +667,41 @@ export default function App() {
 
               <div className="space-y-4 text-xs">
                 <div>
-                  <span className="text-slate-500 uppercase text-[10px] block mb-1">Target Telemetry</span>
-                  <p className="font-bold text-slate-200 text-sm">{activeMetric.name}</p>
+                  <span className="text-slate-500 uppercase text-[10px] block mb-1">Observed Telemetry Property</span>
+                  <p className="font-bold text-slate-200">{activeMetric.name}</p>
                 </div>
 
                 <div>
-                  <span className="text-slate-500 uppercase text-[10px] block mb-1">Pure Python Math Execution</span>
-                  <div className="bg-black/60 border border-teal-500/30 p-3 rounded-xl text-teal-300 font-mono text-xs">
+                  <span className="text-slate-500 uppercase text-[10px] block mb-1">Pure Python Deterministic Formula</span>
+                  <div className="bg-[#05070A] border border-[#1A2234] p-3 rounded text-cyan-300 font-mono text-xs">
                     <code>{activeMetric.formula}</code>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-[#0E1626] p-3 rounded-xl border border-slate-800">
-                    <span className="text-slate-500 text-[9px] block">Analyzed Window</span>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="bg-[#111622] p-2.5 rounded border border-[#1A2234]">
+                    <span className="text-slate-500 text-[9px] block">Temporal Window</span>
                     <span className="font-bold text-slate-200">{activeMetric.window}</span>
                   </div>
-                  <div className="bg-[#0E1626] p-3 rounded-xl border border-slate-800">
-                    <span className="text-slate-500 text-[9px] block">CSV Row Indices</span>
-                    <span className="font-bold text-teal-400">Rows: [{activeMetric.source_rows.join(", ")}]</span>
+                  <div className="bg-[#111622] p-2.5 rounded border border-[#1A2234]">
+                    <span className="text-slate-500 text-[9px] block">Source CSV Rows</span>
+                    <span className="font-bold text-cyan-400">Rows: [{activeMetric.source_rows.join(", ")}]</span>
                   </div>
                 </div>
 
-                <div className="border border-slate-800 bg-[#0E1626]/50 p-3 rounded-xl space-y-1 text-[11px] text-slate-400">
+                <div className="border border-[#1A2234] bg-[#111622]/50 p-3 rounded space-y-1.5 text-xs">
                   <div className="flex justify-between">
-                    <span>Evaluated Value:</span>
-                    <span className="text-white font-bold">{activeMetric.value} {activeMetric.unit}</span>
+                    <span className="text-slate-400">Calculated Value:</span>
+                    <span className="text-slate-100 font-bold">{activeMetric.value} {activeMetric.unit}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Alarm Boundary:</span>
+                    <span className="text-slate-400">Alarm Boundary:</span>
                     <span className="text-rose-400 font-bold">{activeMetric.threshold} {activeMetric.unit}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Breach Triggered:</span>
+                    <span className="text-slate-400">Status Trigger:</span>
                     <span className={activeMetric.breached ? "text-rose-400 font-bold" : "text-emerald-400 font-bold"}>
-                      {activeMetric.breached ? "TRUE" : "FALSE"}
+                      {activeMetric.breached ? "CRITICAL BREACH" : "NOMINAL"}
                     </span>
                   </div>
                 </div>
@@ -784,9 +710,9 @@ export default function App() {
 
             <button
               onClick={() => setActiveMetric(null)}
-              className="w-full bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              className="w-full bg-[#111622] hover:bg-[#182030] border border-[#1A2234] text-slate-300 py-2.5 rounded text-xs font-bold transition-all cursor-pointer"
             >
-              DISMISS AUDIT TRACE
+              DISMISS CALCULATION TRACE
             </button>
           </motion.div>
         )}
