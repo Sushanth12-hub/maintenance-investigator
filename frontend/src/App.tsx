@@ -10,6 +10,7 @@ import {
   Activity,
   Maximize2,
   Lock,
+  Unlock,
   Layers,
   Cpu,
   RefreshCw,
@@ -25,7 +26,12 @@ import {
   Eye,
   BookOpen,
   CheckCircle2,
-  Scan
+  Scan,
+  UserCheck,
+  ShieldCheck,
+  LogOut,
+  Sliders,
+  Award
 } from "lucide-react";
 import {
   LineChart,
@@ -78,7 +84,31 @@ const FORENSIC_FRAMES = [
 ];
 
 export default function App() {
-  const [view, setView] = useState<"upload" | "dashboard">("upload");
+  // Authentication & Clearance State
+  const [currentUser, setCurrentUser] = useState<any>(() => {
+    const saved = localStorage.getItem("forensic_user");
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [loginBadge, setLoginBadge] = useState("ENG-9042");
+  const [loginName, setLoginName] = useState("S. S. Reddy");
+  const [loginRole, setLoginRole] = useState("Certified Reliability Forensics Engineer");
+  const [loginClearance, setLoginClearance] = useState("Level 2 (Intrusive PTW)");
+
+  // Progression & View State
+  const [view, setView] = useState<"auth" | "guide" | "upload" | "dashboard">(() => {
+    const savedUser = localStorage.getItem("forensic_user");
+    const passedGuide = localStorage.getItem("forensic_guide_completed");
+    if (!savedUser) return "auth";
+    if (!passedGuide) return "guide";
+    return "upload";
+  });
+
+  const [unlockedCases, setUnlockedCases] = useState<string[]>(() => {
+    const saved = localStorage.getItem("unlocked_dossiers");
+    return saved ? JSON.parse(saved) : ["P-204"];
+  });
+
   const [equipmentTag, setEquipmentTag] = useState("PUMP P-204");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -86,6 +116,7 @@ export default function App() {
   const [activeMetric, setActiveMetric] = useState<any>(null);
   const [activeFrameIdx, setActiveFrameIdx] = useState(0);
 
+  // File Upload State
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [shiftFile, setShiftFile] = useState<File | null>(null);
   const [oemFile, setOemFile] = useState<File | null>(null);
@@ -97,7 +128,7 @@ export default function App() {
   const oemInputRef = useRef<HTMLInputElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
 
-  // Background Ken-Burns Carousel Timer (Cycles every 5 seconds)
+  // Background Ken-Burns Carousel Timer
   useEffect(() => {
     const frameTimer = setInterval(() => {
       setActiveFrameIdx((prev) => (prev + 1) % FORENSIC_FRAMES.length);
@@ -105,9 +136,59 @@ export default function App() {
     return () => clearInterval(frameTimer);
   }, []);
 
+  const handleLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const user = {
+      badge: loginBadge,
+      name: loginName,
+      role: loginRole,
+      clearance: loginClearance,
+      terminalId: "SEC-04-AIRGAP-TERM-01"
+    };
+    setCurrentUser(user);
+    localStorage.setItem("forensic_user", JSON.stringify(user));
+
+    const passedGuide = localStorage.getItem("forensic_guide_completed");
+    setView(passedGuide ? "upload" : "guide");
+  };
+
+  const handleFastDemoLogin = () => {
+    const demoUser = {
+      badge: "DEMO-LEAD-26117",
+      name: "Sai Sushanth Reddy",
+      role: "Lead Reliability Forensics Examiner",
+      clearance: "Level 3 (Statutory Sign-Off)",
+      terminalId: "AIRGAP-SEC-04"
+    };
+    setCurrentUser(demoUser);
+    localStorage.setItem("forensic_user", JSON.stringify(demoUser));
+    const passedGuide = localStorage.getItem("forensic_guide_completed");
+    setView(passedGuide ? "upload" : "guide");
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("forensic_user");
+    setCurrentUser(null);
+    setData(null);
+    setView("auth");
+  };
+
+  const handleCompleteGuide = () => {
+    localStorage.setItem("forensic_guide_completed", "true");
+    setView("upload");
+  };
+
   const handleImageChange = (file: File | null) => {
     setImageFile(file);
     setLocalImagePreview(file ? URL.createObjectURL(file) : null);
+  };
+
+  const unlockNextCase = (assetId: string) => {
+    if (!unlockedCases.includes(assetId)) {
+      const updated = [...unlockedCases, assetId];
+      setUnlockedCases(updated);
+      localStorage.setItem("unlocked_dossiers", JSON.stringify(updated));
+    }
   };
 
   const runDynamicUpload = async () => {
@@ -148,6 +229,11 @@ export default function App() {
   };
 
   const loadSamplePreset = async (presetId: string) => {
+    if (!unlockedCases.includes(presetId) && currentUser?.clearance !== "Level 3 (Statutory Sign-Off)") {
+      alert(`Dossier ${presetId} is classified. Complete Dossier P-204 initial triage to unlock.`);
+      return;
+    }
+
     setLoading(true);
     setLocalImagePreview(null);
     setPipelineProgress(1);
@@ -162,6 +248,10 @@ export default function App() {
       ]);
       setData(res.data);
       setEquipmentTag(`PUMP ${presetId}`);
+      // If user investigates P-204, automatically unlock P-101
+      if (presetId === "P-204") {
+        unlockNextCase("P-101");
+      }
       setView("dashboard");
     } catch (err) {
       alert("Error loading demo preset.");
@@ -224,13 +314,39 @@ export default function App() {
               BACK TO INGESTION PORTAL
             </motion.button>
           )}
+
+          {view === "upload" && (
+            <button
+              onClick={() => setView("guide")}
+              className="hidden sm:flex items-center gap-2 text-xs font-mono text-[#0284C7] hover:underline"
+            >
+              <HelpCircle className="w-3.5 h-3.5" /> REVISIT CAPABILITY GUIDE
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="text-xs font-mono text-[#003366] bg-[#F1F5F9] border border-[#CBD5E1] px-3 py-1.5 rounded-md flex items-center gap-2">
+          <span className="hidden md:flex text-xs font-mono text-[#003366] bg-[#F1F5F9] border border-[#CBD5E1] px-3 py-1.5 rounded-md items-center gap-2">
             <Cpu className="w-3.5 h-3.5 text-[#0284C7]" />
             OLLAMA LLAMA3.2: ACTIVE
           </span>
+
+          {currentUser && (
+            <div className="flex items-center gap-2 text-xs font-mono bg-[#FFFFFF] border border-[#CBD5E1] px-3 py-1 rounded-md">
+              <UserCheck className="w-3.5 h-3.5 text-[#059669]" />
+              <div className="hidden lg:block text-left leading-tight">
+                <span className="font-bold text-[#003366] block">{currentUser.name}</span>
+                <span className="text-[10px] text-[#64748B]">{currentUser.badge}</span>
+              </div>
+              <button
+                onClick={handleLogout}
+                title="Log out of air-gapped terminal"
+                className="ml-2 text-[#64748B] hover:text-[#BE123C] p-1 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           {data && view === "dashboard" && (
             <motion.button
@@ -285,12 +401,252 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* VIEW 1: COCKPIT INGESTION PORTAL */}
+      {/* VIEW 0: AUTHENTICATION & SECURITY TERMINAL */}
+      {view === "auth" && (
+        <main className="flex-1 flex items-center justify-center p-6">
+          <div className="w-full max-w-md bg-[#FFFFFF] border border-[#CBD5E1] rounded-2xl shadow-xl overflow-hidden">
+            {/* Terminal Header */}
+            <div className="bg-[#0F172A] p-6 text-white text-center relative">
+              <div className="w-10 h-10 rounded-full bg-[#0284C7]/20 border border-[#0284C7] flex items-center justify-center mx-auto mb-3">
+                <Lock className="w-5 h-5 text-cyan-300" />
+              </div>
+              <h2 className="font-display text-lg font-bold tracking-tight">
+                Refinery Air-Gapped Terminal Sign-In
+              </h2>
+              <p className="text-xs text-slate-300 font-mono mt-1">
+                SIH-26117 Forensic Incident Investigator // ISO 10816-3
+              </p>
+
+              <div className="mt-3 inline-flex items-center gap-2 px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700 text-[11px] font-mono text-cyan-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                TERMINAL: SEC-04A-LOCAL-STANDALONE
+              </div>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleLoginSubmit} className="p-6 space-y-4">
+              <div className="flex border-b border-[#E2E8F0] pb-2 text-xs font-mono justify-center gap-6">
+                <button
+                  type="button"
+                  onClick={() => setAuthMode("login")}
+                  className={`pb-1 font-bold ${authMode === "login" ? "text-[#003366] border-b-2 border-[#0284C7]" : "text-[#64748B]"}`}
+                >
+                  PERSONNEL SIGN-IN
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthMode("signup")}
+                  className={`pb-1 font-bold ${authMode === "signup" ? "text-[#003366] border-b-2 border-[#0284C7]" : "text-[#64748B]"}`}
+                >
+                  NEW INSPECTOR ENROLLMENT
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono font-bold text-[#64748B] uppercase mb-1">
+                  Plant Personnel Name
+                </label>
+                <input
+                  type="text"
+                  value={loginName}
+                  onChange={(e) => setLoginName(e.target.value)}
+                  required
+                  className="w-full bg-[#F8FAFC] border border-[#CBD5E1] rounded-lg px-3.5 py-2 text-xs font-mono text-[#0F172A] focus:border-[#0284C7] outline-none"
+                  placeholder="e.g. S. S. Reddy"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono font-bold text-[#64748B] uppercase mb-1">
+                  Inspector Badge ID
+                </label>
+                <input
+                  type="text"
+                  value={loginBadge}
+                  onChange={(e) => setLoginBadge(e.target.value)}
+                  required
+                  className="w-full bg-[#F8FAFC] border border-[#CBD5E1] rounded-lg px-3.5 py-2 text-xs font-mono text-[#003366] font-bold focus:border-[#0284C7] outline-none"
+                  placeholder="e.g. ENG-9042"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-mono font-bold text-[#64748B] uppercase mb-1">
+                    Operational Role
+                  </label>
+                  <select
+                    value={loginRole}
+                    onChange={(e) => setLoginRole(e.target.value)}
+                    className="w-full bg-[#F8FAFC] border border-[#CBD5E1] rounded-lg px-2.5 py-2 text-[11px] font-mono text-[#0F172A] focus:border-[#0284C7] outline-none"
+                  >
+                    <option>Certified Reliability Forensics Engineer</option>
+                    <option>ISO 10816 Statutory Lead Auditor</option>
+                    <option>Plant Shift Operations Supervisor</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-mono font-bold text-[#64748B] uppercase mb-1">
+                    Security Clearance
+                  </label>
+                  <select
+                    value={loginClearance}
+                    onChange={(e) => setLoginClearance(e.target.value)}
+                    className="w-full bg-[#F8FAFC] border border-[#CBD5E1] rounded-lg px-2.5 py-2 text-[11px] font-mono text-[#0F172A] focus:border-[#0284C7] outline-none"
+                  >
+                    <option>Level 2 (Intrusive PTW)</option>
+                    <option>Level 3 (Statutory Sign-Off)</option>
+                    <option>Level 1 (Field Triage Only)</option>
+                  </select>
+                </div>
+              </div>
+
+              <motion.button
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+                type="submit"
+                className="w-full mt-2 bg-[#003366] hover:bg-[#00264d] text-white py-3 rounded-lg text-xs font-display font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-all"
+              >
+                <ShieldCheck className="w-4 h-4 text-cyan-300" />
+                {authMode === "login" ? "AUTHENTICATE AIR-GAPPED SESSION" : "REGISTER INSPECTOR CREDENTIALS"}
+              </motion.button>
+
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-[#E2E8F0]" />
+                <span className="flex-shrink mx-3 text-[10px] font-mono text-[#64748B] uppercase">OR DEMO SHORTCUT</span>
+                <div className="flex-grow border-t border-[#E2E8F0]" />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleFastDemoLogin}
+                className="w-full py-2.5 rounded-lg border border-[#0284C7] bg-cyan-50/50 hover:bg-cyan-50 text-[#0284C7] text-xs font-mono font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#0284C7]" />
+                1-CLICK EVALUATOR / JUDGE DEMO LOGIN
+              </button>
+            </form>
+          </div>
+        </main>
+      )}
+
+      {/* VIEW 0.5: CAPABILITY BRIEFING & FIRST-TIME OPERATOR GUIDE */}
+      {view === "guide" && (
+        <main className="flex-1 p-6 md:p-8 max-w-[1200px] w-full mx-auto space-y-7">
+          <div className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
+            <div className="border-b border-[#CBD5E1] pb-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <span className="text-xs font-mono uppercase tracking-widest text-[#0284C7] font-bold">
+                  SOP Walkthrough // New Session Initialization
+                </span>
+                <h2 className="text-2xl font-display font-extrabold text-[#003366] mt-1">
+                  What This Autonomous Incident Forensic Core Does
+                </h2>
+                <p className="text-xs md:text-sm text-[#64748B] mt-1 font-sans max-w-2xl leading-relaxed">
+                  Heavy plants suffer catastrophic outages not from a lack of sensor data, but from siloing between field human reports, SCADA telemetry, and OEM boundaries.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 bg-[#F8FAFC] border border-[#CBD5E1] px-3 py-1.5 rounded-lg text-xs font-mono text-[#003366]">
+                <Award className="w-4 h-4 text-[#0284C7]" />
+                Clearance: {currentUser?.clearance || "Level 2"}
+              </div>
+            </div>
+
+            {/* 4 Core Pillars */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="p-5 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] space-y-3">
+                <div className="w-9 h-9 rounded-lg bg-cyan-100 border border-cyan-300 flex items-center justify-center text-[#0284C7]">
+                  <Activity className="w-5 h-5" />
+                </div>
+                <h3 className="font-display font-bold text-sm text-[#003366] uppercase">
+                  1. Deterministic Invariant Physics
+                </h3>
+                <p className="text-xs text-[#64748B] font-sans leading-relaxed">
+                  We <strong>never use LLMs to guess physics</strong>. A pure NumPy engine calculates peak velocity peak velocity v_peak and 1st-order thermal drift dT/dt to definitively isolate bearing friction from shaft misalignment.
+                </p>
+                <div className="text-[11px] font-mono text-[#0284C7] bg-white border border-cyan-200 p-2 rounded">
+                  Rule: Peak &gt; Limit + Drift &gt; 0.40°C/h = Bearing Spall
+                </div>
+              </div>
+
+              <div className="p-5 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] space-y-3">
+                <div className="w-9 h-9 rounded-lg bg-rose-100 border border-rose-300 flex items-center justify-center text-[#BE123C]">
+                  <AlertOctagon className="w-5 h-5" />
+                </div>
+                <h3 className="font-display font-bold text-sm text-[#003366] uppercase">
+                  2. Discrepancy & Contradiction Radar
+                </h3>
+                <p className="text-xs text-[#64748B] font-sans leading-relaxed">
+                  Field shift handovers often claim <em>"equipment satisfactory; zero anomalies."</em> Our engine cross-examines PDF worker statements against exact CSV rows to flag institutional blindspots immediately.
+                </p>
+                <div className="text-[11px] font-mono text-[#BE123C] bg-white border border-rose-200 p-2 rounded">
+                  Flags operator oversights with raw timestamp citations
+                </div>
+              </div>
+
+              <div className="p-5 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] space-y-3">
+                <div className="w-9 h-9 rounded-lg bg-emerald-100 border border-emerald-300 flex items-center justify-center text-[#059669]">
+                  <Maximize2 className="w-5 h-5" />
+                </div>
+                <h3 className="font-display font-bold text-sm text-[#003366] uppercase">
+                  3. Edge Multimodal NDT Vision
+                </h3>
+                <p className="text-xs text-[#64748B] font-sans leading-relaxed">
+                  Uploaded inspection photos undergo dynamic pixel-variance thresholding to spot dark lubricant weepage and coupling gap runouts, producing auditable ROI coordinate boxes.
+                </p>
+                <div className="text-[11px] font-mono text-[#059669] bg-white border border-emerald-200 p-2 rounded">
+                  Local PIL / NumPy contrast analysis without cloud transmission
+                </div>
+              </div>
+
+              <div className="p-5 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] space-y-3">
+                <div className="w-9 h-9 rounded-lg bg-blue-100 border border-blue-300 flex items-center justify-center text-[#1E40AF]">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <h3 className="font-display font-bold text-sm text-[#003366] uppercase">
+                  4. Read-Only LOTO Governance
+                </h3>
+                <p className="text-xs text-[#64748B] font-sans leading-relaxed">
+                  The system enforces strict industrial boundaries: it operates as an <strong>offline decision support copilot</strong>. Breaker LOTO and PTW releases always mandate human engineer sign-off.
+                </p>
+                <div className="text-[11px] font-mono text-[#1E40AF] bg-white border border-blue-200 p-2 rounded">
+                  Immutable SHA-256 evidence chain of custody attached
+                </div>
+              </div>
+            </div>
+
+            {/* Progression Briefing Notice */}
+            <div className="p-4 rounded-xl bg-cyan-50/50 border border-[#0284C7]/40 flex items-center justify-between text-xs font-mono">
+              <div className="flex items-center gap-3">
+                <Sliders className="w-4 h-4 text-[#0284C7]" />
+                <span className="text-[#003366] font-bold">PROGRESSION PROTOCOL:</span>
+                <span className="text-[#64748B]">
+                  Dossier P-204 is unlocked for initial triage. Completing P-204 unlocks classified Dossier P-101.
+                </span>
+              </div>
+              <span className="font-bold text-[#0284C7] uppercase">1/2 UNLOCKED</span>
+            </div>
+
+            {/* Acknowledge CTA */}
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+              onClick={handleCompleteGuide}
+              className="w-full bg-[#003366] hover:bg-[#00264d] text-white py-3.5 rounded-lg text-xs font-display font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-all"
+            >
+              ACKNOWLEDGE SOP PROTOCOL & ENTER INGESTION PORTAL
+              <ChevronRight className="w-4 h-4" />
+            </motion.button>
+          </div>
+        </main>
+      )}
+
+      {/* VIEW 1: COCKPIT INGESTION PORTAL (With Progressive Dossier Unlocking) */}
       {view === "upload" && (
         <main className="flex-1 p-6 md:p-8 max-w-[1500px] w-full mx-auto space-y-8">
           {/* ANIMATED MULTI-FRAME KEN-BURNS SCANNER HERO */}
           <div className="relative rounded-2xl overflow-hidden border border-[#CBD5E1] bg-[#0A0E1A] shadow-lg h-80 flex flex-col justify-between p-6 md:p-8">
-            {/* Background Animated Image Reel */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeFrameIdx}
@@ -308,18 +664,15 @@ export default function App() {
               </motion.div>
             </AnimatePresence>
 
-            {/* Industrial HUD Overlays: Scanline & Dual Blueprint Gradients */}
             <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A] via-[#0F172A]/50 to-transparent pointer-events-none" />
             <div className="absolute inset-0 bg-gradient-to-r from-[#0F172A]/90 via-transparent to-[#0F172A]/70 pointer-events-none" />
 
-            {/* Moving Laser Sweep Line Animation */}
             <motion.div
               animate={{ y: ["0%", "300%", "0%"] }}
               transition={{ repeat: Infinity, duration: 6, ease: "linear" }}
               className="absolute left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#0284C7] to-transparent shadow-[0_0_12px_#0284C7] opacity-75 pointer-events-none"
             />
 
-            {/* Top HUD Telemetry Ribbon */}
             <div className="relative z-10 flex items-center justify-between font-mono text-xs">
               <div className="flex items-center gap-3">
                 <span className="bg-[#0F172A]/80 backdrop-blur-md text-cyan-300 border border-cyan-500/40 px-3 py-1.5 rounded-full flex items-center gap-2 font-bold shadow-xs">
@@ -332,7 +685,6 @@ export default function App() {
                 </span>
               </div>
 
-              {/* Slide Indicators */}
               <div className="flex items-center gap-1.5 bg-[#0F172A]/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-slate-700">
                 {FORENSIC_FRAMES.map((f, idx) => (
                   <button
@@ -346,7 +698,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Bottom HUD: Core Description & 1-Click Fast Presets */}
             <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-5">
               <div className="max-w-2xl">
                 <span className="text-xs font-mono uppercase tracking-widest text-[#0284C7] font-bold block mb-1">
@@ -360,7 +711,6 @@ export default function App() {
                 </p>
               </div>
 
-              {/* Fast Quick-Launch Dossiers */}
               <div className="flex items-center gap-2.5 shrink-0">
                 <button
                   onClick={() => loadSamplePreset("P-204")}
@@ -372,27 +722,38 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => loadSamplePreset("P-101")}
-                  disabled={loading}
-                  className="px-3.5 py-2 rounded-lg bg-[#0F172A]/90 hover:bg-[#1E293B] backdrop-blur-md border border-cyan-500/40 text-xs font-mono font-bold text-cyan-300 flex items-center gap-2 transition-all shadow-md hover:border-cyan-400 cursor-pointer"
+                  disabled={loading || (!unlockedCases.includes("P-101") && currentUser?.clearance !== "Level 3 (Statutory Sign-Off)")}
+                  className={`px-3.5 py-2 rounded-lg backdrop-blur-md text-xs font-mono font-bold flex items-center gap-2 transition-all shadow-md ${
+                    unlockedCases.includes("P-101") || currentUser?.clearance === "Level 3 (Statutory Sign-Off)"
+                      ? "bg-[#0F172A]/90 hover:bg-[#1E293B] border border-cyan-500/40 text-cyan-300 hover:border-cyan-400 cursor-pointer"
+                      : "bg-[#0F172A]/50 border border-slate-700 text-slate-400 cursor-not-allowed"
+                  }`}
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                  {unlockedCases.includes("P-101") || currentUser?.clearance === "Level 3 (Statutory Sign-Off)" ? (
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                  ) : (
+                    <Lock className="w-3.5 h-3.5 text-amber-500" />
+                  )}
                   CASE: P-101 (ALIGNMENT)
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Visual Dossier Cases */}
+          {/* Visual Dossier Cases with Progression Badging */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-sm font-display uppercase tracking-wider text-[#003366] font-bold flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-[#0284C7]" />
-                Select Verified Incident Dossier or Ingest Custom Plant Files
+                Incident Investigation Clearance Cases
               </span>
-              <span className="text-xs font-mono text-[#0284C7] font-bold">1-Click Full Cross-Examination</span>
+              <span className="text-xs font-mono text-[#0284C7] font-bold">
+                Clearance Tier: {currentUser?.clearance}
+              </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* Dossier 01: P-204 (Unlocked) */}
               <motion.div
                 whileHover={{ y: -2 }}
                 onClick={() => loadSamplePreset("P-204")}
@@ -406,6 +767,9 @@ export default function App() {
                   />
                   <span className="absolute bottom-1.5 right-1.5 bg-rose-100 text-[#BE123C] border border-rose-300 font-mono text-[10px] font-bold px-1.5 py-0.5 rounded">
                     OIL WEEPAGE
+                  </span>
+                  <span className="absolute top-1.5 left-1.5 bg-emerald-100 text-[#059669] border border-emerald-300 font-mono text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1">
+                    <Unlock className="w-3 h-3" /> UNLOCKED
                   </span>
                 </div>
                 <div className="flex-1 min-w-0 space-y-1.5">
@@ -429,19 +793,37 @@ export default function App() {
                 </div>
               </motion.div>
 
+              {/* Dossier 02: P-101 (Locked until P-204 is inspected, or Level 3) */}
               <motion.div
-                whileHover={{ y: -2 }}
+                whileHover={{ y: unlockedCases.includes("P-101") ? -2 : 0 }}
                 onClick={() => loadSamplePreset("P-101")}
-                className="bg-[#FFFFFF] hover:bg-[#F8FAFC] border border-[#CBD5E1] hover:border-[#0284C7] rounded-xl p-5 cursor-pointer transition-all flex items-center gap-5 group shadow-xs"
+                className={`border rounded-xl p-5 transition-all flex items-center gap-5 group shadow-xs ${
+                  unlockedCases.includes("P-101") || currentUser?.clearance === "Level 3 (Statutory Sign-Off)"
+                    ? "bg-[#FFFFFF] hover:bg-[#F8FAFC] border-[#CBD5E1] hover:border-[#0284C7] cursor-pointer"
+                    : "bg-[#F8FAFC] border-[#E2E8F0] opacity-80 cursor-not-allowed"
+                }`}
               >
                 <div className="relative w-40 h-32 rounded-lg overflow-hidden shrink-0 border border-[#CBD5E1] bg-slate-100">
                   <img
                     src="/P101_coupling_alignment.jpg"
                     alt="Pump P-101 Flexible Coupling"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    className={`w-full h-full object-cover transition-transform ${
+                      unlockedCases.includes("P-101") ? "group-hover:scale-105" : "filter grayscale contrast-75"
+                    }`}
                   />
                   <span className="absolute bottom-1.5 right-1.5 bg-amber-100 text-amber-800 border border-amber-300 font-mono text-[10px] font-bold px-1.5 py-0.5 rounded">
                     GAP RUNOUT
+                  </span>
+                  <span className={`absolute top-1.5 left-1.5 font-mono text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 border ${
+                    unlockedCases.includes("P-101") || currentUser?.clearance === "Level 3 (Statutory Sign-Off)"
+                      ? "bg-emerald-100 text-[#059669] border-emerald-300"
+                      : "bg-amber-100 text-amber-800 border-amber-300"
+                  }`}>
+                    {unlockedCases.includes("P-101") || currentUser?.clearance === "Level 3 (Statutory Sign-Off)" ? (
+                      <><Unlock className="w-3 h-3" /> UNLOCKED</>
+                    ) : (
+                      <><Lock className="w-3 h-3" /> LOCKED</>
+                    )}
                   </span>
                 </div>
                 <div className="flex-1 min-w-0 space-y-1.5">
@@ -458,9 +840,15 @@ export default function App() {
                   </p>
                   <div className="pt-2 flex items-center justify-between text-xs font-mono border-t border-[#F1F5F9]">
                     <span className="text-[#64748B]">Mode: Shaft Misalignment</span>
-                    <span className="text-[#0284C7] flex items-center font-bold">
-                      RUN INVESTIGATION <ChevronRight className="w-3.5 h-3.5 ml-0.5 group-hover:translate-x-1 transition-transform" />
-                    </span>
+                    {unlockedCases.includes("P-101") || currentUser?.clearance === "Level 3 (Statutory Sign-Off)" ? (
+                      <span className="text-[#0284C7] flex items-center font-bold">
+                        RUN INVESTIGATION <ChevronRight className="w-3.5 h-3.5 ml-0.5 group-hover:translate-x-1 transition-transform" />
+                      </span>
+                    ) : (
+                      <span className="text-amber-700 flex items-center font-bold text-[11px]">
+                        <Lock className="w-3 h-3 mr-1" /> COMPLETE DOSSIER 01 TO UNLOCK
+                      </span>
+                    )}
                   </div>
                 </div>
               </motion.div>
