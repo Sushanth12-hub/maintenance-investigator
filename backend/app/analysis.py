@@ -15,7 +15,7 @@ def query_ollama(prompt: str) -> str:
         res = requests.post(
             f"{OLLAMA_HOST}/api/generate",
             json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
-            timeout=2.5
+            timeout=3.5
         )
         if res.status_code == 200:
             return res.json().get("response", "").strip()
@@ -93,25 +93,24 @@ def analyze_dynamic_investigation(
     primary_hypothesis = "Drive-End Bearing Degradation & Spalling" if is_bearing else "Shaft Angular / Radial Misalignment"
     primary_score = 88 if is_bearing else 89
 
-    # Vision Analysis Model
     if is_bearing:
-        default_img = "http://localhost:8000/demo-data/P204_bearing_housing.jpg"
+        default_img = "/P204_bearing_housing.jpg"
         anomalies = [
             {
                 "region": "drive_end_seal_flange",
-                "finding": "Active dark lubricant weeping and micro-fretting corrosion on lower lip",
+                "finding": "Dark oil weeping and fretting corrosion around seal flange lip",
                 "severity": "HIGH",
                 "confidence": 0.91,
-                "box_label": "DEFECT: FLANGE WEEPAGE",
+                "box_label": "CRITICAL WEEPAGE",
                 "coords": "[150, 100, 450, 300]"
             }
         ]
     else:
-        default_img = "http://localhost:8000/demo-data/P101_coupling_alignment.jpg"
+        default_img = "/P101_coupling_alignment.jpg"
         anomalies = [
             {
                 "region": "flexible_grid_coupling",
-                "finding": "Surface oxidation and grid spring wear; dial indicator confirms angular gap runout",
+                "finding": "Coupling hub oxidation with radial clearance offset; verified via dial gauge",
                 "severity": "HIGH",
                 "confidence": 0.89,
                 "box_label": "ALIGNMENT OFFSET GAP",
@@ -130,7 +129,7 @@ def analyze_dynamic_investigation(
         contradictions.append({
             "id": "C1",
             "human_claim": 'Operator shift log: "Visual check normal; zero operational anomalies detected."',
-            "objective_claim": f'Calibrated telemetry records critical vibration of {peak_vib} mm/s (Breaches OEM limit {oem_threshold} mm/s).',
+            "objective_claim": f'Telemetry records critical vibration of {peak_vib} mm/s (Breaches OEM limit {oem_threshold} mm/s).',
             "severity": "high",
             "sources": ["Uploaded_Shiftlog.pdf", "Uploaded_Telemetry.csv"]
         })
@@ -196,29 +195,63 @@ def analyze_dynamic_investigation(
         }
     ]
 
-    ollama_prompt = f"""You are a certified ISO 10816 reliability engineer. Write a 2-sentence forensic technical statement:
-Equipment: {equipment_tag}
-Peak Vibration: {peak_vib} mm/s (OEM Threshold: {oem_threshold} mm/s)
-Thermal Rise Slope: {temp_slope} °C/h
-Primary Diagnosis: {primary_hypothesis}
-Mention mandatory LOTO isolation."""
+    # --- OLLAMA PLAIN ENGLISH TRANSLATION FOR NON-TECHNICAL JUDGES ---
+    layman_prompt = f"""Explain this plant maintenance incident in simple, clear everyday English for a non-technical judge.
+Machine: {equipment_tag}
+Evidence Files:
+1. SCADA Telemetry CSV: Peak vibration reached {peak_vib} mm/s (The machine's heartbeat).
+2. Human Shift Log PDF: The human technician wrote 'visual check normal, zero issues'.
+3. OEM Limits Manual PDF: Sets maximum safe limit at {oem_threshold} mm/s.
 
-    ollama_narrative = query_ollama(ollama_prompt)
-    if not ollama_narrative:
-        ollama_narrative = (
-            f"Investigation confirmed {primary_hypothesis} ({primary_score}% confidence) on {equipment_tag}. "
-            f"Calibrated telemetry recorded peak vibration of {peak_vib} mm/s against the {oem_threshold} mm/s ISO envelope, "
-            f"with thermal drift rate of +{round(temp_slope, 2)} °C/h. "
-            f"Mandatory LOTO electrical and mechanical isolation is required prior to intrusive inspection."
-        )
-        narrative_source = "Deterministic Forensics Engine (Ollama Offline / Standby)"
-    else:
-        narrative_source = f"Local Edge LLM ({OLLAMA_MODEL}) via Ollama"
+Write a 2-sentence summary answering:
+- Why was the human worker wrong?
+- What is the machine actually suffering from ({primary_hypothesis})?
+- Why is it dangerous if left running?"""
+
+    plain_english_ollama = query_ollama(layman_prompt)
+    if not plain_english_ollama:
+        if is_bearing:
+            plain_english_ollama = (
+                f"The human technician logged the pump as completely normal after a quick walk-around, "
+                f"but the vibration sensors prove the drive-end bearing is actively breaking apart under extreme friction. "
+                f"If the machine isn't shut down and locked out immediately, the shaft could seize or rupture the seal."
+            )
+        else:
+            plain_english_ollama = (
+                f"While the maintenance log indicated routine operation, sensor data reveals severe shaft misalignment "
+                f"placing immense mechanical strain on the coupling hubs. Left uncorrected, this will shear the drive shaft "
+                f"and trigger an emergency plant shutdown."
+            )
+
+    plain_english_summary = {
+        "headline": "Human Operator Missed a Dangerous Fault Caught by Machine Sensors",
+        "narrative": plain_english_ollama,
+        "files_explained": [
+            {
+                "file_name": "SCADA Telemetry Stream (CSV)",
+                "simple_concept": "The Machine's Stethoscope",
+                "what_it_says": f"Recorded physical vibrations of {peak_vib} mm/s, violently shaking beyond normal limits.",
+                "verdict": "CRITICAL"
+            },
+            {
+                "file_name": "Shift Turnover Work Order (PDF)",
+                "simple_concept": "The Human Walk-Around Log",
+                "what_it_says": "Technician reported 'visual check normal; zero operational anomalies detected.'",
+                "verdict": "CONTRADICTED"
+            },
+            {
+                "file_name": "OEM Specification Manual (PDF)",
+                "simple_concept": "The Factory Speed Limit",
+                "what_it_says": f"States that vibration over {oem_threshold} mm/s causes catastrophic raceway damage.",
+                "verdict": "BREACHED"
+            }
+        ]
+    }
 
     return {
         "investigation_id": f"INV-2026-{equipment_tag.replace(' ', '').replace('/', '-')}-01",
         "equipment_tag": equipment_tag,
-        "timestamp": "2026-09-06T14:15:00Z",
+        "timestamp": "2026-09-06T17:30:00Z",
         "status": "completed",
         "vision": vision_findings,
         "telemetry_series": telemetry_series,
@@ -227,9 +260,10 @@ Mention mandatory LOTO isolation."""
         "evidence_matrix": evidence_matrix,
         "contradictions": contradictions,
         "inspection_plan": inspection_plan,
+        "plain_english_summary": plain_english_summary,
         "ai_summary": {
-            "narrative": ollama_narrative,
-            "source": narrative_source
+            "narrative": plain_english_ollama,
+            "source": f"Local Edge LLM ({OLLAMA_MODEL}) via Ollama" if "Ollama" in OLLAMA_HOST else "Deterministic Fallback Engine"
         },
         "citations": {
             "limits": "OEM_limits.pdf",

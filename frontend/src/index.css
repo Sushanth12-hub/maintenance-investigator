@@ -4,25 +4,36 @@
 
 @layer base {
   body {
-    background-color: #07090E;
-    color: #E2E8F0;
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: #F1F5F9;
+    color: #0F172A;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.01em;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: 'Space Grotesk', sans-serif;
+    letter-spacing: -0.02em;
+    color: #003366;
+  }
+
+  .font-mono, code, pre, table, .tabular-nums {
+    font-family: 'JetBrains Mono', monospace;
   }
 }
 
+/* Technical Blueprint Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
-  background: #0B0E14;
+  background: #E2E8F0;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1E2638;
-  border-radius: 3px;
+  background: #CBD5E1;
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2A3650;
+  background: #94A3B8;
 }
