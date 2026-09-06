@@ -1,4 +1,4 @@
-﻿import { useState, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -24,7 +24,8 @@ import {
   Stethoscope,
   Eye,
   BookOpen,
-  CheckCircle2
+  CheckCircle2,
+  Scan
 } from "lucide-react";
 import {
   LineChart,
@@ -45,6 +46,37 @@ const PIPELINE_STAGES = [
   { id: "S5", title: "Ollama Translation", desc: "Synthesizing non-field plain English dossier" }
 ];
 
+const FORENSIC_FRAMES = [
+  {
+    id: "F1",
+    src: "/refinery-bay.jpg",
+    tag: "SECTOR 04-A // PUMP BAY",
+    subtitle: "High-Pressure Feedwater Skid System",
+    badge: "SCADA INGESTION ACTIVE"
+  },
+  {
+    id: "F2",
+    src: "/P204_bearing_housing.jpg",
+    tag: "NDT ROI // BEARING HOUSING",
+    subtitle: "Drive-End Flange & Seal Lip Inspection",
+    badge: "OPTICAL ANOMALY DETECTED"
+  },
+  {
+    id: "F3",
+    src: "/P101_coupling_alignment.jpg",
+    tag: "KINEMATICS // GRID COUPLING",
+    subtitle: "Angular Runout & Clearance Gap Verification",
+    badge: "LASER ALIGNMENT CHECK"
+  },
+  {
+    id: "F4",
+    src: "/sensor-probe.jpg",
+    tag: "TELEMETRY // PIEZO PROBE",
+    subtitle: "Calibrated ISO 10816-3 Dynamic Accelerometer",
+    badge: "24-BIT DIGITAL STREAM"
+  }
+];
+
 export default function App() {
   const [view, setView] = useState<"upload" | "dashboard">("upload");
   const [equipmentTag, setEquipmentTag] = useState("PUMP P-204");
@@ -52,6 +84,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [pipelineProgress, setPipelineProgress] = useState(0);
   const [activeMetric, setActiveMetric] = useState<any>(null);
+  const [activeFrameIdx, setActiveFrameIdx] = useState(0);
 
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [shiftFile, setShiftFile] = useState<File | null>(null);
@@ -63,6 +96,14 @@ export default function App() {
   const shiftInputRef = useRef<HTMLInputElement>(null);
   const oemInputRef = useRef<HTMLInputElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
+
+  // Background Ken-Burns Carousel Timer (Cycles every 5 seconds)
+  useEffect(() => {
+    const frameTimer = setInterval(() => {
+      setActiveFrameIdx((prev) => (prev + 1) % FORENSIC_FRAMES.length);
+    }, 5000);
+    return () => clearInterval(frameTimer);
+  }, []);
 
   const handleImageChange = (file: File | null) => {
     setImageFile(file);
@@ -132,7 +173,10 @@ export default function App() {
   };
 
   const openAuditReport = () => {
-    window.open(`http://localhost:8000/api/investigate/report?asset=${equipmentTag.includes("101") ? "P-101" : "P-204"}`, "_blank");
+    window.open(
+      `http://localhost:8000/api/investigate/report?asset=${equipmentTag.includes("101") ? "P-101" : "P-204"}`,
+      "_blank"
+    );
   };
 
   const renderStatusCell = (status: string, label: string) => {
@@ -244,53 +288,96 @@ export default function App() {
       {/* VIEW 1: COCKPIT INGESTION PORTAL */}
       {view === "upload" && (
         <main className="flex-1 p-6 md:p-8 max-w-[1500px] w-full mx-auto space-y-8">
-          {/* Main Blueprint Hero Banner */}
-          <div className="relative rounded-xl overflow-hidden border border-[#CBD5E1] bg-[#FFFFFF] shadow-sm">
-            <div className="h-72 relative w-full overflow-hidden">
-              <img
-                src="/refinery-bay.jpg"
-                alt="Refinery Machinery Hall"
-                className="w-full h-full object-cover object-center filter contrast-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#FFFFFF] via-[#FFFFFF]/80 to-transparent" />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#FFFFFF] via-transparent to-[#FFFFFF]/60" />
+          {/* ANIMATED MULTI-FRAME KEN-BURNS SCANNER HERO */}
+          <div className="relative rounded-2xl overflow-hidden border border-[#CBD5E1] bg-[#0A0E1A] shadow-lg h-80 flex flex-col justify-between p-6 md:p-8">
+            {/* Background Animated Image Reel */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeFrameIdx}
+                initial={{ opacity: 0, scale: 1.02 }}
+                animate={{ opacity: 1, scale: 1.08 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 1.2, ease: "easeOut" }}
+                className="absolute inset-0 w-full h-full"
+              >
+                <img
+                  src={FORENSIC_FRAMES[activeFrameIdx].src}
+                  alt={FORENSIC_FRAMES[activeFrameIdx].tag}
+                  className="w-full h-full object-cover object-center filter brightness-90 contrast-110"
+                />
+              </motion.div>
+            </AnimatePresence>
 
-              <div className="absolute top-5 left-6 flex items-center gap-3 font-mono text-xs">
-                <span className="bg-[#FFFFFF]/90 backdrop-blur-md text-[#003366] border border-[#CBD5E1] px-3 py-1.5 rounded-full flex items-center gap-2 font-bold shadow-xs">
+            {/* Industrial HUD Overlays: Scanline & Dual Blueprint Gradients */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A] via-[#0F172A]/50 to-transparent pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#0F172A]/90 via-transparent to-[#0F172A]/70 pointer-events-none" />
+
+            {/* Moving Laser Sweep Line Animation */}
+            <motion.div
+              animate={{ y: ["0%", "300%", "0%"] }}
+              transition={{ repeat: Infinity, duration: 6, ease: "linear" }}
+              className="absolute left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#0284C7] to-transparent shadow-[0_0_12px_#0284C7] opacity-75 pointer-events-none"
+            />
+
+            {/* Top HUD Telemetry Ribbon */}
+            <div className="relative z-10 flex items-center justify-between font-mono text-xs">
+              <div className="flex items-center gap-3">
+                <span className="bg-[#0F172A]/80 backdrop-blur-md text-cyan-300 border border-cyan-500/40 px-3 py-1.5 rounded-full flex items-center gap-2 font-bold shadow-xs">
                   <Radio className="w-3.5 h-3.5 text-[#0284C7] animate-pulse" />
-                  REFINERY SKID // PUMP BAY 04-A
+                  {FORENSIC_FRAMES[activeFrameIdx].tag}
                 </span>
-                <span className="bg-[#FFFFFF]/90 text-[#64748B] border border-[#CBD5E1] px-3 py-1.5 rounded-full font-medium">
-                  ISO 10816-3 CONDITION MONITORING & FORENSICS
+                <span className="hidden sm:flex items-center gap-1.5 bg-[#0F172A]/70 backdrop-blur-md text-slate-300 border border-slate-700 px-3 py-1.5 rounded-full">
+                  <Scan className="w-3.5 h-3.5 text-[#0284C7]" />
+                  {FORENSIC_FRAMES[activeFrameIdx].badge}
                 </span>
               </div>
 
-              <div className="absolute bottom-6 left-6 max-w-3xl">
+              {/* Slide Indicators */}
+              <div className="flex items-center gap-1.5 bg-[#0F172A]/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-slate-700">
+                {FORENSIC_FRAMES.map((f, idx) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setActiveFrameIdx(idx)}
+                    className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                      idx === activeFrameIdx ? "w-6 bg-[#0284C7]" : "w-1.5 bg-slate-600 hover:bg-slate-400"
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Bottom HUD: Core Description & 1-Click Fast Presets */}
+            <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-5">
+              <div className="max-w-2xl">
                 <span className="text-xs font-mono uppercase tracking-widest text-[#0284C7] font-bold block mb-1">
-                  Deterministic Physics + Edge AI
+                  Air-Gapped Multi-Modal Engine // ISO 10816-3 Compliant
                 </span>
-                <h1 className="text-3xl font-display font-extrabold text-[#003366] tracking-tight leading-tight">
+                <h1 className="text-2xl md:text-3xl font-display font-extrabold text-white tracking-tight leading-tight drop-shadow-md">
                   Autonomous Plant Incident Forensic Core
                 </h1>
-                <p className="text-sm text-[#0F172A] mt-1.5 leading-relaxed font-sans max-w-2xl font-medium">
-                  Cross-correlating SCADA telemetry, shift turnovers, and optical defect imagery to expose mechanical failure before catastrophic blowout.
+                <p className="text-xs md:text-sm text-slate-200 mt-1 font-sans leading-relaxed drop-shadow-sm">
+                  {FORENSIC_FRAMES[activeFrameIdx].subtitle} — cross-referencing telemetry, shift handover claims, and OEM boundaries.
                 </p>
               </div>
 
-              <div className="absolute bottom-6 right-6 hidden lg:flex items-center gap-3.5 bg-[#FFFFFF]/95 backdrop-blur-md border border-[#CBD5E1] p-3 rounded-lg shadow-sm">
-                <img
-                  src="/sensor-probe.jpg"
-                  alt="Accelerometer Probe Rig"
-                  className="w-16 h-16 rounded-md object-cover border border-[#CBD5E1]"
-                />
-                <div className="text-xs font-mono space-y-0.5">
-                  <div className="text-[#003366] font-bold">PIEZO ACCELEROMETER #02</div>
-                  <div className="text-[#64748B] font-sans">Calibration: ISO 10816 Certified</div>
-                  <div className="text-[#059669] font-bold flex items-center gap-1.5 mt-1 font-mono text-[11px]">
-                    <span className="w-2 h-2 rounded-full bg-[#059669]" />
-                    ACTIVE SCADA FEED
-                  </div>
-                </div>
+              {/* Fast Quick-Launch Dossiers */}
+              <div className="flex items-center gap-2.5 shrink-0">
+                <button
+                  onClick={() => loadSamplePreset("P-204")}
+                  disabled={loading}
+                  className="px-3.5 py-2 rounded-lg bg-[#0F172A]/90 hover:bg-[#1E293B] backdrop-blur-md border border-cyan-500/40 text-xs font-mono font-bold text-cyan-300 flex items-center gap-2 transition-all shadow-md hover:border-cyan-400 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                  CASE: P-204 (BEARING)
+                </button>
+                <button
+                  onClick={() => loadSamplePreset("P-101")}
+                  disabled={loading}
+                  className="px-3.5 py-2 rounded-lg bg-[#0F172A]/90 hover:bg-[#1E293B] backdrop-blur-md border border-cyan-500/40 text-xs font-mono font-bold text-cyan-300 flex items-center gap-2 transition-all shadow-md hover:border-cyan-400 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                  CASE: P-101 (ALIGNMENT)
+                </button>
               </div>
             </div>
           </div>
@@ -593,7 +680,7 @@ export default function App() {
               </div>
               <div className="mt-2 text-xs font-mono text-[#64748B] border-t border-[#F1F5F9] pt-2 flex justify-between">
                 <span>Thermal Limit:</span>
-                <span className="text-[#0F172A] font-bold">0.50 °C/h</span>
+                <span className="text-[#0F172A] font-bold">0.40 °C/h</span>
               </div>
             </div>
 
@@ -629,7 +716,7 @@ export default function App() {
             </div>
           </section>
 
-                    {/* Cryptographic Chain-of-Custody Verification */}
+          {/* Cryptographic Chain-of-Custody Verification */}
           {data.chain_of_custody && (
             <div className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-xl px-5 py-3 flex flex-wrap items-center justify-between gap-4 text-xs font-mono shadow-xs">
               <div className="flex items-center gap-3">
@@ -866,7 +953,7 @@ export default function App() {
                 </div>
               </section>
 
-              {/* Evidence Cross-Examination Matrix with Deep Iron Navy Header */}
+              {/* Evidence Cross-Examination Matrix */}
               {data.evidence_matrix && (
                 <section className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-xl p-6 shadow-xs overflow-x-auto space-y-4">
                   <div className="flex items-center justify-between pb-3 border-b border-[#CBD5E1]">
