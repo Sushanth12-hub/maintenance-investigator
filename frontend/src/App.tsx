@@ -1,22 +1,42 @@
 ﻿import { useState } from "react";
 import axios from "axios";
-import { AlertTriangle, ShieldCheck, Play, CheckCircle2, ChevronRight, X, Cpu, FileDown, Eye, Activity } from "lucide-react";
+import { AlertTriangle, ShieldCheck, Play, CheckCircle2, ChevronRight, X, Cpu, FileDown, Eye, Activity, Check, Loader2 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+
+const AGENT_STEPS = [
+  "Agent 1: Ingesting SCADA telemetry & computing RMS/polyfit slope...",
+  "Agent 2: Extracting OEM thresholds & shift logs via PyMuPDF...",
+  "Agent 3: Running Multimodal Vision Scanner on housing seal lip...",
+  "Agent 4: Cross-examining operator claims vs sensor telemetry...",
+  "Agent 5: Synthesizing safety-gated LOTO & PTW isolation plan..."
+];
 
 export default function App() {
   const [selectedAsset, setSelectedAsset] = useState<string>("P-204");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
   const [activeMetric, setActiveMetric] = useState<any>(null);
 
   const runInvestigation = async (asset = selectedAsset) => {
     setLoading(true);
+    setCurrentStep(0);
+
+    // 2.5-second multi-agent progress simulation
+    const interval = setInterval(() => {
+      setCurrentStep((prev) => (prev < AGENT_STEPS.length - 1 ? prev + 1 : prev));
+    }, 500);
+
     try {
-      const response = await axios.post(`http://localhost:8000/api/investigate/run?asset=${asset}`);
+      const [response] = await Promise.all([
+        axios.post(`http://localhost:8000/api/investigate/run?asset=${asset}`),
+        new Promise((resolve) => setTimeout(resolve, 2500))
+      ]);
       setData(response.data);
     } catch (err) {
       alert("Error reaching backend at http://localhost:8000. Ensure uvicorn is running.");
     } finally {
+      clearInterval(interval);
       setLoading(false);
     }
   };
@@ -116,7 +136,7 @@ export default function App() {
             className="w-full bg-teal-600 hover:bg-teal-500 text-white font-medium py-2.5 rounded flex items-center justify-center gap-2 text-sm shadow-md transition-all disabled:opacity-50 cursor-pointer"
           >
             <Play className="w-4 h-4" />
-            {loading ? "Synthesizing Evidence..." : "Run Investigation"}
+            {loading ? "Synthesizing Pipeline..." : "Run Investigation"}
           </button>
         </div>
       </aside>
@@ -195,7 +215,7 @@ export default function App() {
               </div>
             )}
 
-            {/* Multimodal Vision Card (Only when photo exists) */}
+            {/* Multimodal Vision Card */}
             {data.vision && (
               <div className="bg-white border border-industrial-border rounded-lg p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-3 border-b border-industrial-border pb-2">
@@ -208,11 +228,16 @@ export default function App() {
                   </span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                  <div className="relative rounded overflow-hidden border border-slate-300 bg-slate-900 flex items-center justify-center p-4">
-                    <div className="relative border-2 border-red-500 rounded p-4 text-center bg-slate-800/80 w-full">
-                      <div className="text-[10px] text-red-400 font-mono tracking-widest font-bold">ANOMALY DETECTED</div>
-                      <div className="text-xs text-white font-bold mt-1">Drive-End Bearing Seal Lip</div>
-                      <div className="text-[10px] text-slate-300 mt-1">Micro-fretting & fluid weeping</div>
+                  <div className="relative rounded overflow-hidden border border-slate-300 bg-slate-900 flex flex-col items-center">
+                    <img
+                      src="http://localhost:8000/demo-data/P204_bearing_housing.jpg"
+                      alt="P-204 Drive-End Bearing Housing"
+                      className="w-full h-36 object-cover"
+                    />
+                    <div className="w-full bg-slate-800/90 p-1.5 text-center">
+                      <span className="text-[10px] text-red-400 font-mono font-bold tracking-wide">
+                        ANOMALY: SEAL LIP WEEPING
+                      </span>
                     </div>
                   </div>
                   <div className="md:col-span-2 space-y-2 text-xs">
@@ -379,6 +404,50 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Multi-Agent Live Execution Stepper Modal */}
+      {loading && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-2xl border border-slate-200">
+            <div className="flex items-center gap-3 mb-4">
+              <Loader2 className="w-5 h-5 text-teal-600 animate-spin" />
+              <div>
+                <h3 className="font-bold text-slate-800 text-sm">Multi-Agent Investigation Active</h3>
+                <p className="text-slate-400 text-xs font-mono">Running deterministic verification pipeline</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {AGENT_STEPS.map((step, idx) => {
+                const isCompleted = idx < currentStep;
+                const isCurrent = idx === currentStep;
+
+                return (
+                  <div
+                    key={idx}
+                    className={`flex items-start gap-2.5 text-xs p-2 rounded transition-all ${
+                      isCurrent ? "bg-teal-50 text-teal-900 font-medium" : isCompleted ? "text-slate-700" : "text-slate-300"
+                    }`}
+                  >
+                    <span
+                      className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] shrink-0 mt-0.5 ${
+                        isCompleted
+                          ? "bg-teal-600 text-white"
+                          : isCurrent
+                          ? "border border-teal-600 text-teal-600 animate-pulse"
+                          : "border border-slate-300 text-slate-300"
+                      }`}
+                    >
+                      {isCompleted ? <Check className="w-2.5 h-2.5" /> : idx + 1}
+                    </span>
+                    <span>{step}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Audit Drawer */}
       {activeMetric && (

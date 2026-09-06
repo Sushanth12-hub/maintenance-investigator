@@ -1,6 +1,8 @@
-﻿from fastapi import FastAPI, Query
+﻿import os
+from fastapi import FastAPI, Query
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.analysis import run_investigation
 from app.reports import generate_html_report
 
@@ -12,6 +14,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+demo_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../demo-data"))
+if os.path.exists(demo_dir):
+    app.mount("/demo-data", StaticFiles(directory=demo_dir), name="demo-data")
 
 @app.post("/api/investigate/run")
 def run(asset: str = Query("P-204")):
