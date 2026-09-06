@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI
+﻿from fastapi import FastAPI, Query
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from app.analysis import run_investigation
@@ -14,10 +14,10 @@ app.add_middleware(
 )
 
 @app.post("/api/investigate/run")
-def run():
-    return run_investigation()
+def run(asset: str = Query("P-204")):
+    return run_investigation(asset_id=asset)
 
 @app.get("/api/investigate/report", response_class=HTMLResponse)
-def get_report():
-    data = run_investigation()
+def get_report(asset: str = Query("P-204")):
+    data = run_investigation(asset_id=asset)
     return generate_html_report(data)

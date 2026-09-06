@@ -4,14 +4,15 @@ import { AlertTriangle, ShieldCheck, Play, CheckCircle2, ChevronRight, X, Cpu, F
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 export default function App() {
+  const [selectedAsset, setSelectedAsset] = useState<string>("P-204");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [activeMetric, setActiveMetric] = useState<any>(null);
 
-  const runInvestigation = async () => {
+  const runInvestigation = async (asset = selectedAsset) => {
     setLoading(true);
     try {
-      const response = await axios.post("http://localhost:8000/api/investigate/run");
+      const response = await axios.post(`http://localhost:8000/api/investigate/run?asset=${asset}`);
       setData(response.data);
     } catch (err) {
       alert("Error reaching backend at http://localhost:8000. Ensure uvicorn is running.");
@@ -20,8 +21,13 @@ export default function App() {
     }
   };
 
+  const handleAssetChange = (assetId: string) => {
+    setSelectedAsset(assetId);
+    runInvestigation(assetId);
+  };
+
   const openAuditReport = () => {
-    window.open("http://localhost:8000/api/investigate/report", "_blank");
+    window.open(`http://localhost:8000/api/investigate/report?asset=${selectedAsset}`, "_blank");
   };
 
   const getStatusBadge = (status: string, text: string) => {
@@ -45,18 +51,50 @@ export default function App() {
           <div className="font-bold text-lg tracking-wider text-teal-400">SIH 26117</div>
           <div className="text-xs text-slate-400 mt-1">Maintenance Investigator</div>
 
-          <div className="mt-8 space-y-4 text-sm text-slate-300">
+          {/* Asset Selection Tabs */}
+          <div className="mt-6">
+            <span className="text-[10px] text-slate-400 uppercase block font-mono mb-2">Select Target Asset</span>
+            <div className="grid grid-cols-2 gap-1.5 bg-refinery-800 p-1 rounded border border-slate-700">
+              <button
+                onClick={() => handleAssetChange("P-204")}
+                className={`py-1.5 text-xs font-medium rounded transition-all cursor-pointer ${selectedAsset === "P-204" ? "bg-teal-600 text-white shadow" : "text-slate-400 hover:text-white"}`}
+              >
+                Pump P-204
+              </button>
+              <button
+                onClick={() => handleAssetChange("P-101")}
+                className={`py-1.5 text-xs font-medium rounded transition-all cursor-pointer ${selectedAsset === "P-101" ? "bg-teal-600 text-white shadow" : "text-slate-400 hover:text-white"}`}
+              >
+                Pump P-101
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-4 text-sm text-slate-300">
             <div className="bg-refinery-800 p-3 rounded border border-slate-700">
-              <span className="text-[10px] text-slate-400 uppercase block font-mono">Target Machine</span>
-              <p className="font-semibold text-white">Pump P-204</p>
+              <span className="text-[10px] text-slate-400 uppercase block font-mono">Active Target Machine</span>
+              <p className="font-semibold text-white">
+                {selectedAsset === "P-204" ? "Pump P-204 (Boiler Feed)" : "Pump P-101 (Crude Transfer)"}
+              </p>
               <span className="text-[10px] text-teal-400">ISO 10816-3 Class II</span>
             </div>
             
-            <div className="text-xs text-slate-400 space-y-1">
-              <div>• WO-204-8821_shiftlog.pdf</div>
-              <div>• OEM_P204_limits.pdf</div>
-              <div>• P204_sensor_24h.csv</div>
-              <div>• P204_bearing_housing.jpg</div>
+            <div className="text-xs text-slate-400 space-y-1 font-mono text-[11px]">
+              {selectedAsset === "P-204" ? (
+                <>
+                  <div>• WO-204-8821_shiftlog.pdf</div>
+                  <div>• OEM_P204_limits.pdf</div>
+                  <div>• P204_sensor_24h.csv</div>
+                  <div>• P204_bearing_housing.jpg</div>
+                </>
+              ) : (
+                <>
+                  <div>• WO-101-4412_shiftlog.pdf</div>
+                  <div>• OEM_P101_limits.pdf</div>
+                  <div>• P101_sensor_24h.csv</div>
+                  <div className="text-slate-500">• (Photo inspection offline)</div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -73,7 +111,7 @@ export default function App() {
           )}
 
           <button
-            onClick={runInvestigation}
+            onClick={() => runInvestigation()}
             disabled={loading}
             className="w-full bg-teal-600 hover:bg-teal-500 text-white font-medium py-2.5 rounded flex items-center justify-center gap-2 text-sm shadow-md transition-all disabled:opacity-50 cursor-pointer"
           >
@@ -88,9 +126,9 @@ export default function App() {
         {!data ? (
           <div className="h-full flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-lg p-12 text-center bg-white">
             <p className="text-slate-600 font-medium mb-1">Investigation Pipeline Idle</p>
-            <p className="text-xs text-slate-400 max-w-sm mb-4">Click below to run the multi-agent synthesis engine on Pump P-204 multimodal evidence.</p>
+            <p className="text-xs text-slate-400 max-w-sm mb-4">Click below to run the multi-agent synthesis engine on {selectedAsset} multimodal evidence.</p>
             <button
-              onClick={runInvestigation}
+              onClick={() => runInvestigation()}
               className="bg-refinery-900 text-white px-5 py-2 text-xs rounded font-medium shadow hover:bg-slate-800 transition-all cursor-pointer"
             >
               Start Investigation
@@ -127,11 +165,11 @@ export default function App() {
                   <span className="flex items-center text-[10px] text-teal-600 font-semibold">Audit Trace <ChevronRight className="w-3 h-3" /></span>
                 </div>
                 <div className="flex items-baseline justify-between mt-1">
-                  <h3 className="text-2xl font-bold text-amber-600 font-mono">
+                  <h3 className={`text-2xl font-bold font-mono ${data.metrics.temperature_rate_of_rise.breached ? "text-amber-600" : "text-emerald-600"}`}>
                     +{data.metrics.temperature_rate_of_rise.value} {data.metrics.temperature_rate_of_rise.unit}
                   </h3>
-                  <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-mono">
-                    Thermal Drift
+                  <span className={`text-xs px-2 py-0.5 rounded font-mono ${data.metrics.temperature_rate_of_rise.breached ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+                    {data.metrics.temperature_rate_of_rise.breached ? "Thermal Drift" : "Thermal Stable"}
                   </span>
                 </div>
               </div>
@@ -157,7 +195,7 @@ export default function App() {
               </div>
             )}
 
-            {/* Multimodal Vision Card */}
+            {/* Multimodal Vision Card (Only when photo exists) */}
             {data.vision && (
               <div className="bg-white border border-industrial-border rounded-lg p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-3 border-b border-industrial-border pb-2">
@@ -201,9 +239,9 @@ export default function App() {
               <div className="flex justify-between items-center mb-4">
                 <h4 className="font-semibold text-slate-800 text-sm flex items-center gap-2">
                   <Activity className="w-4 h-4 text-teal-600" />
-                  Dynamic 24h Vibration Trend vs OEM Limit (7.1 mm/s)
+                  Dynamic 24h Vibration Trend vs OEM Limit ({data.metrics.peak_vibration.threshold} mm/s)
                 </h4>
-                <span className="text-[10px] font-mono text-slate-400">Streamed from P204_sensor_24h.csv</span>
+                <span className="text-[10px] font-mono text-slate-400">Streamed from {data.citations.sensor}</span>
               </div>
               <div className="h-56 w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -211,7 +249,7 @@ export default function App() {
                     <XAxis dataKey="time" fontSize={11} stroke="#64748B" />
                     <YAxis fontSize={11} stroke="#64748B" domain={[0, 11]} />
                     <Tooltip contentStyle={{ fontSize: '12px' }} />
-                    <ReferenceLine y={7.1} stroke="#DC2626" strokeDasharray="3 3" label={{ value: "OEM Limit (7.1)", fill: "#DC2626", fontSize: 10 }} />
+                    <ReferenceLine y={data.metrics.peak_vibration.threshold} stroke="#DC2626" strokeDasharray="3 3" label={{ value: `Limit (${data.metrics.peak_vibration.threshold})`, fill: "#DC2626", fontSize: 10 }} />
                     <Line type="monotone" dataKey="vibration" stroke="#DC2626" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                   </LineChart>
                 </ResponsiveContainer>
@@ -240,33 +278,33 @@ export default function App() {
               </div>
             ))}
 
-            {/* 3 Competing Hypotheses Ranking */}
+            {/* Competing Hypotheses Ranking */}
             <div className="bg-white p-5 rounded-lg border border-industrial-border shadow-sm">
               <h4 className="font-semibold text-slate-800 text-sm mb-3">Multi-Hypothesis Cross-Examination</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {data.hypotheses.map((hyp: any) => (
                   <div 
                     key={hyp.id} 
-                    className={`p-3 rounded border text-xs flex flex-col justify-between ${hyp.status === 'CONFIRMED_PRIMARY' ? 'bg-teal-50/50 border-teal-300' : 'bg-slate-50 border-slate-200'}`}
+                    className={`p-3.5 rounded border text-xs flex flex-col justify-between ${hyp.status === 'CONFIRMED_PRIMARY' ? 'bg-teal-50/60 border-teal-300' : 'bg-slate-50 border-slate-200'}`}
                   >
                     <div>
                       <div className="flex justify-between items-center mb-1.5">
                         <span className="font-mono text-[10px] text-slate-500 font-bold">{hyp.id}</span>
-                        <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${hyp.status === 'CONFIRMED_PRIMARY' ? 'bg-teal-600 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${hyp.status === 'CONFIRMED_PRIMARY' ? 'bg-teal-600 text-white' : 'bg-slate-200 text-slate-700'}`}>
                           {hyp.score}% Conf
                         </span>
                       </div>
                       <p className="font-bold text-slate-800 mb-2">{hyp.title}</p>
                       <ul className="space-y-1 text-slate-600 text-[11px]">
-                        {hyp.reasons.slice(0, 2).map((r: string, idx: number) => (
-                          <li key={idx} className="flex items-start gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-teal-600 shrink-0 mt-0.5" />
+                        {hyp.reasons.map((r: string, idx: number) => (
+                          <li key={idx} className="flex items-start gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-teal-600 shrink-0 mt-0.5" />
                             <span>{r}</span>
                           </li>
                         ))}
                       </ul>
                     </div>
-                    <span className="mt-3 text-[10px] font-mono text-slate-400 block border-t pt-1.5">
+                    <span className="mt-3 text-[10px] font-mono text-slate-400 block border-t pt-2">
                       Status: {hyp.status}
                     </span>
                   </div>
@@ -311,13 +349,13 @@ export default function App() {
             {/* Safety-Gated Action Plan */}
             <div className="bg-white p-5 rounded-lg border border-industrial-border shadow-sm">
               <h4 className="font-semibold text-slate-800 text-sm mb-3">Safety-Gated Action Plan</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {data.inspection_plan.map((item: any, idx: number) => (
-                  <div key={idx} className="p-3 bg-slate-50 rounded border border-slate-200 text-xs space-y-2 flex flex-col justify-between">
+                  <div key={idx} className="p-3.5 bg-slate-50 rounded border border-slate-200 text-xs space-y-2 flex flex-col justify-between">
                     <div>
                       <div className="flex justify-between items-center mb-1">
                         <span className="font-mono font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded text-[10px]">{item.priority}</span>
-                        <span className="text-[9px] font-mono text-slate-500">{item.permit_type}</span>
+                        <span className="text-[10px] font-mono text-slate-500">{item.permit_type}</span>
                       </div>
                       <div className="font-bold text-slate-800 mb-1">{item.title}</div>
                       <p className="text-[11px] text-slate-600 mb-2">{item.description}</p>
@@ -325,7 +363,7 @@ export default function App() {
                     <div className="space-y-1 border-t pt-2">
                       {item.safety_controls.map((ctrl: string, cIdx: number) => (
                         <div key={cIdx} className="flex items-center gap-1.5 text-slate-700 text-[10px]">
-                          <ShieldCheck className="w-3 h-3 text-amber-600 shrink-0" />
+                          <ShieldCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                           <span>{ctrl}</span>
                         </div>
                       ))}
