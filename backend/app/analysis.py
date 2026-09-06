@@ -35,15 +35,40 @@ def extract_pdf_structured(stream_bytes: bytes) -> list:
 
 def parse_oem_limits(pdf_pages: list) -> dict:
     full_text = "\n".join([p["text"] for p in pdf_pages])
-    match = re.search(r"(?:ISO\s*10816-3|velocity\s*limit|vibration\s*alarm|trip\s*boundary|zone\s*c/d)[\s:\-=]+([0-9]+\.?[0-9]*)\s*mm/s", full_text, re.IGNORECASE)
-    threshold = float(match.group(1)) if match else (4.5 if "class i" in full_text.lower() else 7.1)
     
+    # Priority 1: Match explicit industrial threshold phrases (e.g., "Alarm Threshold: 7.1 mm/s", "Limit: 4.5 mm/s")
+    match = re.search(
+        r"(?:velocity|vibration|threshold|limit|alarm|boundary|zone\s*[cd])[^0-9\n\r]{1,40}?([0-9]+\.?[0-9]*)\s*mm/s",
+        full_text,
+        re.IGNORECASE
+    )
+    
+    # Priority 2: Fallback to any isolated velocity metric if qualified pattern not matched
+    if not match:
+        match = re.search(r"([0-9]+\.?[0-9]*)\s*mm/s", full_text, re.IGNORECASE)
+
+    threshold = None
+    if match:
+        try:
+            threshold = float(match.group(1))
+        except (ValueError, TypeError):
+            threshold = None
+
+    # Priority 3: Fallback using ISO 10816 class detection with STRICT word boundaries
+    if threshold is None:
+        # \bclass\s+i\b prevents accidental matches against "Class II"
+        is_class_1 = bool(re.search(r"\bclass\s+i\b", full_text, re.IGNORECASE))
+        threshold = 4.5 if is_class_1 else 7.1
+
     citation_page = 1
     for p in pdf_pages:
         if match and match.group(0) in p["text"]:
             citation_page = p["page"]
             break
-            
+        elif str(threshold) in p["text"]:
+            citation_page = p["page"]
+            break
+
     return {
         "threshold": threshold,
         "citation": f"OEM Manual (Page {citation_page}, Clause ISO-10816-3)",
@@ -124,7 +149,7 @@ def analyze_dynamic_investigation(
     oem_spec = parse_oem_limits(oem_pages)
     threshold = oem_spec["threshold"]
 
-    # Kinematic Decision Tree: Vibration threshold + Thermal gradient
+    # Kinematic Decision Tree
     is_breached = peak_vib > threshold
     is_thermal_runaway = temp_slope > 0.40
 

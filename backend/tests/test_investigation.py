@@ -1,4 +1,5 @@
 ﻿import io
+import pymupdf
 import pandas as pd
 from app.analysis import analyze_dynamic_investigation
 
@@ -11,14 +12,23 @@ def generate_mock_csv(peak_vib: float, temp_rise: float) -> bytes:
     df.to_csv(buf, index=False)
     return buf.getvalue()
 
-MOCK_OEM_PDF = b"%PDF-1.4 Mock ISO 10816-3 velocity limit: 7.1 mm/s. Rigid foundation Class II."
-MOCK_SHIFT_NORMAL_PDF = b"%PDF-1.4 Technician Shift Turnover: Visual check normal; zero operational anomalies detected."
+def create_valid_pdf(text: str) -> bytes:
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((50, 72), text)
+    pdf_bytes = doc.tobytes()
+    doc.close()
+    return pdf_bytes
+
+MOCK_OEM_PDF = create_valid_pdf("Vibration Velocity Alarm Threshold: 7.1 mm/s. Rigid foundation ISO 10816-3 Class II.")
+MOCK_SHIFT_NORMAL_PDF = create_valid_pdf("Technician Shift Turnover: Visual check normal; zero operational anomalies detected.")
 
 def test_bearing_degradation_identification():
     csv_bytes = generate_mock_csv(peak_vib=9.1, temp_rise=1.2)
     res = analyze_dynamic_investigation(csv_bytes, MOCK_SHIFT_NORMAL_PDF, MOCK_OEM_PDF, equipment_tag="ASSET-01")
     assert "Bearing" in res["hypotheses"][0]["title"]
     assert res["metrics"]["peak_vibration"]["breached"] is True
+    assert res["metrics"]["peak_vibration"]["threshold"] == 7.1
     assert res["metrics"]["temperature_rate_of_rise"]["breached"] is True
     assert len(res["contradictions"]) == 1
 
@@ -27,6 +37,7 @@ def test_misalignment_identification():
     res = analyze_dynamic_investigation(csv_bytes, MOCK_SHIFT_NORMAL_PDF, MOCK_OEM_PDF, equipment_tag="ASSET-02")
     assert "Misalignment" in res["hypotheses"][0]["title"]
     assert res["metrics"]["peak_vibration"]["breached"] is True
+    assert res["metrics"]["peak_vibration"]["threshold"] == 7.1
     assert res["metrics"]["temperature_rate_of_rise"]["breached"] is False
 
 def test_nominal_baseline():
