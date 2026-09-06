@@ -363,7 +363,7 @@ export default function App() {
                       DOSSIER 02: PUMP P-101 (CRUDE TRANSFER)
                     </span>
                     <span className="text-xs font-mono bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded font-bold">
-                      8.8 mm/s RUNOUT
+                      7.8 mm/s RUNOUT
                     </span>
                   </div>
                   <p className="text-xs text-[#64748B] line-clamp-2 leading-relaxed font-sans">
