@@ -1,4 +1,5 @@
-﻿import os
+﻿import hashlib
+import os
 import io
 import re
 import pymupdf
@@ -129,6 +130,15 @@ def analyze_dynamic_investigation(
     image_url: str = None
 ):
     df = pd.read_csv(io.BytesIO(csv_bytes))
+
+    # Cryptographic Chain-of-Custody Fingerprints
+    evidence_hashes = {
+        "telemetry_sha256": hashlib.sha256(csv_bytes).hexdigest(),
+        "shiftlog_sha256": hashlib.sha256(shift_bytes).hexdigest(),
+        "oem_limits_sha256": hashlib.sha256(oem_bytes).hexdigest(),
+        "optical_capture_sha256": hashlib.sha256(image_bytes).hexdigest() if image_bytes else None,
+        "chain_id": f"BLCK-{hashlib.sha256(csv_bytes + shift_bytes + oem_bytes).hexdigest()[:16].upper()}"
+    }
 
     vib_col = [c for c in df.columns if any(k in c.lower() for k in ["vib", "velocity", "val", "speed"])][0]
     temp_col = [c for c in df.columns if any(k in c.lower() for k in ["temp", "bearing", "celsius", "deg"])][0]
@@ -272,6 +282,7 @@ def analyze_dynamic_investigation(
     return {
         "investigation_id": f"INV-2026-{re.sub(r'[^A-Za-z0-9]', '', equipment_tag)}-01",
         "equipment_tag": equipment_tag,
+        "chain_of_custody": evidence_hashes,
         "status": "COMPLETED",
         "disclaimer": "DECISION SUPPORT SYSTEM — REQUIRES HUMAN RELIABILITY ENGINEER APPROVAL PRIOR TO PTW SIGN-OFF",
         "metrics": metrics,

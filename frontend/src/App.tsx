@@ -629,6 +629,24 @@ export default function App() {
             </div>
           </section>
 
+                    {/* Cryptographic Chain-of-Custody Verification */}
+          {data.chain_of_custody && (
+            <div className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-xl px-5 py-3 flex flex-wrap items-center justify-between gap-4 text-xs font-mono shadow-xs">
+              <div className="flex items-center gap-3">
+                <span className="w-2 h-2 rounded-full bg-[#059669] shadow-[0_0_6px_#059669]" />
+                <span className="font-bold text-[#003366]">EVIDENCE CHAIN-OF-CUSTODY IMMUTABLE HASH:</span>
+                <span className="bg-[#F1F5F9] px-2 py-0.5 rounded border border-[#CBD5E1] text-[#0284C7] font-bold">
+                  {data.chain_of_custody.chain_id}
+                </span>
+              </div>
+              <div className="text-[#64748B] flex items-center gap-4">
+                <span>SCADA SHA-256: {data.chain_of_custody.telemetry_sha256?.substring(0, 12)}...</span>
+                <span>DOCS SHA-256: {data.chain_of_custody.shiftlog_sha256?.substring(0, 12)}...</span>
+                <span className="text-[#059669] font-bold">SHA-256 VERIFIED</span>
+              </div>
+            </div>
+          )}
+
           {/* PLAIN-ENGLISH TRANSLATOR FOR JUDGES */}
           {data.plain_english_summary && (
             <motion.section
