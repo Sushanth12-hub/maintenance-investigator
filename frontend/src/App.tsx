@@ -1,17 +1,7 @@
 ﻿import { useState } from "react";
 import axios from "axios";
-import { AlertTriangle, ShieldCheck, Play, CheckCircle2, ChevronRight, X, Cpu, FileDown } from "lucide-react";
+import { AlertTriangle, ShieldCheck, Play, CheckCircle2, ChevronRight, X, Cpu, FileDown, Eye, Activity } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
-
-const chartData = [
-  { time: "08:00", vibration: 4.2, temp: 71.0 },
-  { time: "10:00", vibration: 4.8, temp: 72.1 },
-  { time: "12:00", vibration: 5.6, temp: 73.5 },
-  { time: "14:00", vibration: 6.4, temp: 75.0 },
-  { time: "16:00", vibration: 7.4, temp: 77.2 },
-  { time: "18:00", vibration: 8.3, temp: 79.8 },
-  { time: "20:00", vibration: 9.1, temp: 82.4 },
-];
 
 export default function App() {
   const [data, setData] = useState<any>(null);
@@ -34,6 +24,19 @@ export default function App() {
     window.open("http://localhost:8000/api/investigate/report", "_blank");
   };
 
+  const getStatusBadge = (status: string, text: string) => {
+    let colorClass = "bg-emerald-500";
+    if (status === "NEUTRAL") colorClass = "bg-amber-500";
+    if (status === "CONTRADICT") colorClass = "bg-red-500";
+
+    return (
+      <span className="flex items-center gap-1.5">
+        <span className={`w-2 h-2 rounded-full shrink-0 ${colorClass}`}></span>
+        <span>{text}</span>
+      </span>
+    );
+  };
+
   return (
     <div className="min-h-screen flex relative">
       {/* Left Sidebar */}
@@ -46,7 +49,7 @@ export default function App() {
             <div className="bg-refinery-800 p-3 rounded border border-slate-700">
               <span className="text-[10px] text-slate-400 uppercase block font-mono">Target Machine</span>
               <p className="font-semibold text-white">Pump P-204</p>
-              <span className="text-[10px] text-teal-400">Demo Synthetic Data</span>
+              <span className="text-[10px] text-teal-400">ISO 10816-3 Class II</span>
             </div>
             
             <div className="text-xs text-slate-400 space-y-1">
@@ -75,7 +78,7 @@ export default function App() {
             className="w-full bg-teal-600 hover:bg-teal-500 text-white font-medium py-2.5 rounded flex items-center justify-center gap-2 text-sm shadow-md transition-all disabled:opacity-50 cursor-pointer"
           >
             <Play className="w-4 h-4" />
-            {loading ? "Analyzing Evidence..." : "Run Investigation"}
+            {loading ? "Synthesizing Evidence..." : "Run Investigation"}
           </button>
         </div>
       </aside>
@@ -85,7 +88,7 @@ export default function App() {
         {!data ? (
           <div className="h-full flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-lg p-12 text-center bg-white">
             <p className="text-slate-600 font-medium mb-1">Investigation Pipeline Idle</p>
-            <p className="text-xs text-slate-400 max-w-sm mb-4">Click below to run the deterministic evaluation pipeline on Pump P-204 evidence.</p>
+            <p className="text-xs text-slate-400 max-w-sm mb-4">Click below to run the multi-agent synthesis engine on Pump P-204 multimodal evidence.</p>
             <button
               onClick={runInvestigation}
               className="bg-refinery-900 text-white px-5 py-2 text-xs rounded font-medium shadow hover:bg-slate-800 transition-all cursor-pointer"
@@ -154,17 +157,62 @@ export default function App() {
               </div>
             )}
 
-            {/* Chart */}
+            {/* Multimodal Vision Card */}
+            {data.vision && (
+              <div className="bg-white border border-industrial-border rounded-lg p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-3 border-b border-industrial-border pb-2">
+                  <h4 className="font-semibold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-teal-600" />
+                    Multimodal Visual Defect Inspection
+                  </h4>
+                  <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono border border-slate-200">
+                    {data.vision.equipment_identified} ({data.vision.resolution})
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                  <div className="relative rounded overflow-hidden border border-slate-300 bg-slate-900 flex items-center justify-center p-4">
+                    <div className="relative border-2 border-red-500 rounded p-4 text-center bg-slate-800/80 w-full">
+                      <div className="text-[10px] text-red-400 font-mono tracking-widest font-bold">ANOMALY DETECTED</div>
+                      <div className="text-xs text-white font-bold mt-1">Drive-End Bearing Seal Lip</div>
+                      <div className="text-[10px] text-slate-300 mt-1">Micro-fretting & fluid weeping</div>
+                    </div>
+                  </div>
+                  <div className="md:col-span-2 space-y-2 text-xs">
+                    {data.vision.visual_anomalies.map((ano: any, idx: number) => (
+                      <div key={idx} className="p-2.5 rounded bg-slate-50 border border-slate-200 flex justify-between items-start">
+                        <div>
+                          <span className="font-semibold text-slate-800 capitalize font-mono text-[11px] block">
+                            {ano.region.replace(/_/g, " ")}
+                          </span>
+                          <p className="text-slate-600 text-[11px] mt-0.5">{ano.finding}</p>
+                        </div>
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold shrink-0 ${ano.severity === 'HIGH' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {Math.round(ano.confidence * 100)}% Conf
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Dynamic Recharts Chart */}
             <div className="bg-white p-5 rounded-lg border border-industrial-border shadow-sm">
-              <h4 className="font-semibold text-slate-800 text-sm mb-4">24h Vibration Trend vs OEM Envelope</h4>
+              <div className="flex justify-between items-center mb-4">
+                <h4 className="font-semibold text-slate-800 text-sm flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-teal-600" />
+                  Dynamic 24h Vibration Trend vs OEM Limit (7.1 mm/s)
+                </h4>
+                <span className="text-[10px] font-mono text-slate-400">Streamed from P204_sensor_24h.csv</span>
+              </div>
               <div className="h-56 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData}>
+                  <LineChart data={data.telemetry_series || []}>
                     <XAxis dataKey="time" fontSize={11} stroke="#64748B" />
                     <YAxis fontSize={11} stroke="#64748B" domain={[0, 11]} />
                     <Tooltip contentStyle={{ fontSize: '12px' }} />
                     <ReferenceLine y={7.1} stroke="#DC2626" strokeDasharray="3 3" label={{ value: "OEM Limit (7.1)", fill: "#DC2626", fontSize: 10 }} />
-                    <Line type="monotone" dataKey="vibration" stroke="#DC2626" strokeWidth={2} />
+                    <Line type="monotone" dataKey="vibration" stroke="#DC2626" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -192,41 +240,98 @@ export default function App() {
               </div>
             ))}
 
-            {/* Diagnosis & Safety */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white p-5 rounded-lg border border-industrial-border shadow-sm">
-                <h4 className="font-semibold text-slate-800 text-sm mb-3">Ranked Root Cause</h4>
-                <div className="p-3 bg-slate-50 rounded border border-slate-200">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-bold text-slate-800 text-sm">{data.hypotheses[0].title}</span>
-                    <span className="text-xs font-mono font-bold bg-teal-100 text-teal-800 px-2 py-0.5 rounded">
-                      {data.hypotheses[0].score}% Confidence
+            {/* 3 Competing Hypotheses Ranking */}
+            <div className="bg-white p-5 rounded-lg border border-industrial-border shadow-sm">
+              <h4 className="font-semibold text-slate-800 text-sm mb-3">Multi-Hypothesis Cross-Examination</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {data.hypotheses.map((hyp: any) => (
+                  <div 
+                    key={hyp.id} 
+                    className={`p-3 rounded border text-xs flex flex-col justify-between ${hyp.status === 'CONFIRMED_PRIMARY' ? 'bg-teal-50/50 border-teal-300' : 'bg-slate-50 border-slate-200'}`}
+                  >
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <span className="font-mono text-[10px] text-slate-500 font-bold">{hyp.id}</span>
+                        <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${hyp.status === 'CONFIRMED_PRIMARY' ? 'bg-teal-600 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                          {hyp.score}% Conf
+                        </span>
+                      </div>
+                      <p className="font-bold text-slate-800 mb-2">{hyp.title}</p>
+                      <ul className="space-y-1 text-slate-600 text-[11px]">
+                        {hyp.reasons.slice(0, 2).map((r: string, idx: number) => (
+                          <li key={idx} className="flex items-start gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-teal-600 shrink-0 mt-0.5" />
+                            <span>{r}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <span className="mt-3 text-[10px] font-mono text-slate-400 block border-t pt-1.5">
+                      Status: {hyp.status}
                     </span>
                   </div>
-                  <ul className="text-xs text-slate-600 space-y-1">
-                    {data.hypotheses[0].reasons.map((r: string, idx: number) => (
-                      <li key={idx} className="flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                        {r}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                ))}
               </div>
+            </div>
 
-              <div className="bg-white p-5 rounded-lg border border-industrial-border shadow-sm">
-                <h4 className="font-semibold text-slate-800 text-sm mb-3">Safety-Gated Action Plan</h4>
-                <div className="p-3 bg-slate-50 rounded border border-slate-200 text-xs space-y-2">
-                  <div className="font-bold text-slate-800">{data.inspection_plan[0].priority}: {data.inspection_plan[0].title}</div>
-                  <div className="space-y-1">
-                    {data.inspection_plan[0].safety_controls.map((control: string, idx: number) => (
-                      <div key={idx} className="flex items-center gap-1.5 text-amber-900 bg-amber-50 p-1.5 rounded border border-amber-200 font-mono text-[11px]">
-                        <ShieldCheck className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                        {control}
-                      </div>
-                    ))}
-                  </div>
+            {/* 2D Interactive Evidence Matrix */}
+            {data.evidence_matrix && (
+              <div className="bg-white p-5 rounded-lg border border-industrial-border shadow-sm overflow-x-auto">
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="font-semibold text-slate-800 text-sm">Interactive 2D Evidence Matrix</h4>
+                  <span className="text-[10px] text-slate-400 font-mono">Cross-Examination Verification Grid</span>
                 </div>
+                <table className="w-full text-left text-xs border border-slate-200">
+                  <thead className="bg-slate-100 text-slate-600 uppercase text-[10px] font-mono">
+                    <tr>
+                      <th className="p-2.5 border">Failure Mode</th>
+                      <th className="p-2.5 border">Photo Analysis</th>
+                      <th className="p-2.5 border">Work Order Log</th>
+                      <th className="p-2.5 border">OEM Limits</th>
+                      <th className="p-2.5 border">Telemetry Stream</th>
+                      <th className="p-2.5 border">Asset History</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {data.evidence_matrix.map((row: any, i: number) => (
+                      <tr key={i} className="hover:bg-slate-50">
+                        <td className="p-2.5 font-bold text-slate-800 border bg-slate-50">{row.mode}</td>
+                        <td className="p-2.5 border text-[11px]">{getStatusBadge(row.photo.status, row.photo.text)}</td>
+                        <td className="p-2.5 border text-[11px]">{getStatusBadge(row.report.status, row.report.text)}</td>
+                        <td className="p-2.5 border text-[11px]">{getStatusBadge(row.manual.status, row.manual.text)}</td>
+                        <td className="p-2.5 border text-[11px]">{getStatusBadge(row.csv.status, row.csv.text)}</td>
+                        <td className="p-2.5 border text-[11px]">{getStatusBadge(row.history.status, row.history.text)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Safety-Gated Action Plan */}
+            <div className="bg-white p-5 rounded-lg border border-industrial-border shadow-sm">
+              <h4 className="font-semibold text-slate-800 text-sm mb-3">Safety-Gated Action Plan</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {data.inspection_plan.map((item: any, idx: number) => (
+                  <div key={idx} className="p-3 bg-slate-50 rounded border border-slate-200 text-xs space-y-2 flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-mono font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded text-[10px]">{item.priority}</span>
+                        <span className="text-[9px] font-mono text-slate-500">{item.permit_type}</span>
+                      </div>
+                      <div className="font-bold text-slate-800 mb-1">{item.title}</div>
+                      <p className="text-[11px] text-slate-600 mb-2">{item.description}</p>
+                    </div>
+                    <div className="space-y-1 border-t pt-2">
+                      {item.safety_controls.map((ctrl: string, cIdx: number) => (
+                        <div key={cIdx} className="flex items-center gap-1.5 text-slate-700 text-[10px]">
+                          <ShieldCheck className="w-3 h-3 text-amber-600 shrink-0" />
+                          <span>{ctrl}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
