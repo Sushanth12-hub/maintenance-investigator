@@ -212,7 +212,7 @@ export default function App() {
 
     try {
       const [res] = await Promise.all([
-        axios.post("http://localhost:8000/api/investigate/upload", formData, {
+        axios.post("/api/investigate/upload", formData, {
           headers: { "Content-Type": "multipart/form-data" }
         }),
         new Promise((resolve) => setTimeout(resolve, 2300))
@@ -243,7 +243,7 @@ export default function App() {
 
     try {
       const [res] = await Promise.all([
-        axios.post(`http://localhost:8000/api/investigate/run?asset=${presetId}`),
+        axios.post(`/api/investigate/run?asset=${presetId}`),
         new Promise((resolve) => setTimeout(resolve, 2300))
       ]);
       setData(res.data);
@@ -264,7 +264,7 @@ export default function App() {
 
   const openAuditReport = () => {
     window.open(
-      `http://localhost:8000/api/investigate/report?asset=${equipmentTag.includes("101") ? "P-101" : "P-204"}`,
+      `/api/investigate/report?asset=${equipmentTag.includes("101") ? "P-101" : "P-204"}`,
       "_blank"
     );
   };
