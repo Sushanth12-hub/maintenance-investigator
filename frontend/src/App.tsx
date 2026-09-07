@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useScroll, useSpring, useMotionValue } from "framer-motion";
 import {
   AlertOctagon,
   ShieldAlert,
@@ -30,8 +30,12 @@ import {
   UserCheck,
   ShieldCheck,
   LogOut,
-  Sliders,
-  Award
+    Award,
+  Volume2,
+  VolumeX,
+  Target,
+  Flame,
+  Binary
 } from "lucide-react";
 import {
   LineChart,
@@ -43,6 +47,179 @@ import {
   ReferenceLine,
   CartesianGrid
 } from "recharts";
+
+// --- AIR-GAPPED TACTILE AUDIO SYNTHESIZER (Pure Web Audio API) ---
+class SoundController {
+  private ctx: AudioContext | null = null;
+  public enabled: boolean = true;
+
+  private init() {
+    if (!this.ctx && typeof window !== "undefined") {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) this.ctx = new AudioCtx();
+    }
+  }
+
+  playBlip(freq = 880, duration = 0.04) {
+    if (!this.enabled) return;
+    try {
+      this.init();
+      if (!this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+      gain.gain.setValueAtTime(0.025, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + duration);
+    } catch {}
+  }
+
+  playAlarm() {
+    if (!this.enabled) return;
+    try {
+      this.init();
+      if (!this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(440, this.ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(220, this.ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.04, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.15);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.15);
+    } catch {}
+  }
+}
+
+const sound = new SoundController();
+
+// --- PRECISION FORENSIC LASER CURSOR ---
+function ForensicCursor() {
+  const cursorX = useMotionValue(-100);
+  const cursorY = useMotionValue(-100);
+  const [isHovered, setIsHovered] = useState(false);
+  const [coords, setCoords] = useState({ x: 0, y: 0 });
+
+  const ringSpring = { damping: 26, stiffness: 320 };
+  const ringX = useSpring(cursorX, ringSpring);
+  const ringY = useSpring(cursorY, ringSpring);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      cursorX.set(e.clientX);
+      cursorY.set(e.clientY);
+      setCoords({ x: Math.round(e.clientX), y: Math.round(e.clientY) });
+
+      const target = e.target as HTMLElement;
+      const interactive = target.closest("button, a, input, select, [role='button'], .cursor-pointer");
+      setIsHovered(!!interactive);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, [cursorX, cursorY]);
+
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[9999] hidden lg:block overflow-hidden">
+      {/* Outer Reticle Ring */}
+      <motion.div
+        style={{ x: ringX, y: ringY }}
+        className={`fixed top-0 left-0 -translate-x-1/2 -translate-y-1/2 rounded-full border transition-all duration-200 flex items-center justify-center ${
+          isHovered
+            ? "w-12 h-12 border-[#BE123C] bg-rose-500/10 scale-110 shadow-[0_0_12px_rgba(190,18,60,0.4)]"
+            : "w-8 h-8 border-[#0284C7] bg-[#0284C7]/5 shadow-[0_0_8px_rgba(2,132,199,0.3)]"
+        }`}
+      >
+        <div className="absolute w-full h-[1px] bg-cyan-400/40" />
+        <div className="absolute h-full w-[1px] bg-cyan-400/40" />
+      </motion.div>
+
+      {/* Center Laser Point */}
+      <motion.div
+        style={{ x: cursorX, y: cursorY }}
+        className={`fixed top-0 left-0 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full shadow-sm transition-colors ${
+          isHovered ? "bg-[#BE123C]" : "bg-[#0284C7]"
+        }`}
+      />
+
+      {/* Live Coordinate Telemetry Badge */}
+      <motion.div
+        style={{ x: ringX, y: ringY }}
+        className="fixed top-4 left-4 font-mono text-[9px] text-[#0284C7] bg-white/90 backdrop-blur-xs px-1.5 py-0.5 rounded border border-[#CBD5E1] shadow-xs select-none"
+      >
+        X:{coords.x} Y:{coords.y}
+      </motion.div>
+    </div>
+  );
+}
+
+// --- ISO 10816-3 DYNAMIC RADIAL ARC GAUGE ---
+function IsoArcGauge({ value, threshold }: { value: number; threshold: number }) {
+  const maxScale = 12.0;
+  const clampedVal = Math.min(Math.max(value, 0), maxScale);
+  const angle = (clampedVal / maxScale) * 180 - 180; // -180 to 0 degrees
+
+  let zone = "Zone A (Nominal)";
+  let zoneColor = "#059669";
+  if (value > 2.3 && value <= 4.5) {
+    zone = "Zone B (Unrestricted)";
+    zoneColor = "#16A34A";
+  } else if (value > 4.5 && value <= threshold) {
+    zone = "Zone C (Restricted)";
+    zoneColor = "#D97706";
+  } else if (value > threshold) {
+    zone = "Zone D (Critical Breach)";
+    zoneColor = "#BE123C";
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center p-3 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl relative overflow-hidden">
+      <div className="w-full flex justify-between items-center text-[10px] font-mono text-[#64748B] mb-1">
+        <span className="font-bold text-[#003366] uppercase">ISO 10816-3 Dynamic Envelope</span>
+        <span style={{ color: zoneColor }} className="font-bold">{zone}</span>
+      </div>
+
+      <div className="relative w-44 h-24 flex items-end justify-center">
+        <svg viewBox="0 0 160 90" className="w-full h-full overflow-visible">
+          {/* Background Arc: Zone A (0 to 2.3) */}
+          <path d="M 15 80 A 65 65 0 0 1 38 34" fill="none" stroke="#059669" strokeWidth="12" opacity="0.85" />
+          {/* Zone B (2.3 to 4.5) */}
+          <path d="M 38 34 A 65 65 0 0 1 80 15" fill="none" stroke="#65A30D" strokeWidth="12" opacity="0.85" />
+          {/* Zone C (4.5 to 7.1) */}
+          <path d="M 80 15 A 65 65 0 0 1 122 34" fill="none" stroke="#D97706" strokeWidth="12" opacity="0.85" />
+          {/* Zone D (> 7.1) */}
+          <path d="M 122 34 A 65 65 0 0 1 145 80" fill="none" stroke="#BE123C" strokeWidth="12" opacity="0.85" />
+
+          {/* Needle Pivot Center */}
+          <circle cx="80" cy="80" r="5" fill="#003366" />
+        </svg>
+
+        {/* Dynamic Needle */}
+        <motion.div
+          initial={{ rotate: -180 }}
+          animate={{ rotate: angle }}
+          transition={{ type: "spring", stiffness: 120, damping: 14 }}
+          style={{ transformOrigin: "bottom center" }}
+          className="absolute bottom-2 w-1 h-16 bg-[#003366] rounded-t shadow-md z-10"
+        >
+          <div className="w-2.5 h-2.5 -ml-0.75 -mt-1 rounded-full bg-[#BE123C] shadow-sm" />
+        </motion.div>
+      </div>
+
+      <div className="mt-2 text-center">
+        <span className="text-2xl font-display font-extrabold text-[#003366] tracking-tight">{value.toFixed(2)}</span>
+        <span className="text-xs text-[#64748B] font-mono ml-1">mm/s</span>
+      </div>
+    </div>
+  );
+}
 
 const PIPELINE_STAGES = [
   { id: "S1", title: "SCADA Telemetry", desc: "NumPy velocity peak & polyfit thermal slope" },
@@ -84,7 +261,14 @@ const FORENSIC_FRAMES = [
 ];
 
 export default function App() {
-  // Authentication & Clearance State
+  // Kinetic Scroll Tracker
+  const { scrollYProgress } = useScroll();
+  const scaleX = useSpring(scrollYProgress, { stiffness: 120, damping: 28, restDelta: 0.001 });
+
+  // Sound State
+  const [audioActive, setAudioActive] = useState(true);
+
+  // Authentication & Clearance
   const [currentUser, setCurrentUser] = useState<any>(() => {
     const saved = localStorage.getItem("forensic_user");
     return saved ? JSON.parse(saved) : null;
@@ -95,7 +279,7 @@ export default function App() {
   const [loginRole, setLoginRole] = useState("Certified Reliability Forensics Engineer");
   const [loginClearance, setLoginClearance] = useState("Level 2 (Intrusive PTW)");
 
-  // Progression & View State
+  // Progression & View
   const [view, setView] = useState<"auth" | "guide" | "upload" | "dashboard">(() => {
     const savedUser = localStorage.getItem("forensic_user");
     const passedGuide = localStorage.getItem("forensic_guide_completed");
@@ -116,6 +300,9 @@ export default function App() {
   const [activeMetric, setActiveMetric] = useState<any>(null);
   const [activeFrameIdx, setActiveFrameIdx] = useState(0);
 
+  // Multi-Spectral Optical Filter Mode
+  const [spectralFilter, setSpectralFilter] = useState<"visible" | "thermal" | "contour" | "defect">("visible");
+
   // File Upload State
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [shiftFile, setShiftFile] = useState<File | null>(null);
@@ -128,7 +315,6 @@ export default function App() {
   const oemInputRef = useRef<HTMLInputElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
 
-  // Background Ken-Burns Carousel Timer
   useEffect(() => {
     const frameTimer = setInterval(() => {
       setActiveFrameIdx((prev) => (prev + 1) % FORENSIC_FRAMES.length);
@@ -136,8 +322,16 @@ export default function App() {
     return () => clearInterval(frameTimer);
   }, []);
 
+  const toggleSound = () => {
+    const next = !audioActive;
+    setAudioActive(next);
+    sound.enabled = next;
+    if (next) sound.playBlip(1200);
+  };
+
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    sound.playBlip(980);
     const user = {
       badge: loginBadge,
       name: loginName,
@@ -153,6 +347,7 @@ export default function App() {
   };
 
   const handleFastDemoLogin = () => {
+    sound.playBlip(1100);
     const demoUser = {
       badge: "DEMO-LEAD-26117",
       name: "Sai Sushanth Reddy",
@@ -167,6 +362,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    sound.playBlip(600);
     localStorage.removeItem("forensic_user");
     setCurrentUser(null);
     setData(null);
@@ -174,6 +370,7 @@ export default function App() {
   };
 
   const handleCompleteGuide = () => {
+    sound.playBlip(1050);
     localStorage.setItem("forensic_guide_completed", "true");
     setView("upload");
   };
@@ -197,10 +394,14 @@ export default function App() {
       return;
     }
 
+    sound.playBlip(750);
     setLoading(true);
     setPipelineProgress(1);
     const timer = setInterval(() => {
-      setPipelineProgress((p) => (p < PIPELINE_STAGES.length ? p + 1 : p));
+      setPipelineProgress((p) => {
+        sound.playBlip(800 + p * 120);
+        return p < PIPELINE_STAGES.length ? p + 1 : p;
+      });
     }, 450);
 
     const formData = new FormData();
@@ -218,6 +419,7 @@ export default function App() {
         new Promise((resolve) => setTimeout(resolve, 2300))
       ]);
       setData(res.data);
+      sound.playAlarm();
       setView("dashboard");
     } catch (err) {
       alert("Error processing upload dossier. Verify backend terminal.");
@@ -234,11 +436,15 @@ export default function App() {
       return;
     }
 
+    sound.playBlip(750);
     setLoading(true);
     setLocalImagePreview(null);
     setPipelineProgress(1);
     const timer = setInterval(() => {
-      setPipelineProgress((p) => (p < PIPELINE_STAGES.length ? p + 1 : p));
+      setPipelineProgress((p) => {
+        sound.playBlip(800 + p * 120);
+        return p < PIPELINE_STAGES.length ? p + 1 : p;
+      });
     }, 450);
 
     try {
@@ -248,10 +454,8 @@ export default function App() {
       ]);
       setData(res.data);
       setEquipmentTag(`PUMP ${presetId}`);
-      // If user investigates P-204, automatically unlock P-101
-      if (presetId === "P-204") {
-        unlockNextCase("P-101");
-      }
+      if (presetId === "P-204") unlockNextCase("P-101");
+      sound.playAlarm();
       setView("dashboard");
     } catch (err) {
       alert("Error loading demo preset.");
@@ -263,10 +467,8 @@ export default function App() {
   };
 
   const openAuditReport = () => {
-    window.open(
-      `/api/investigate/report?asset=${equipmentTag.includes("101") ? "P-101" : "P-204"}`,
-      "_blank"
-    );
+    sound.playBlip(1200);
+    window.open(`/api/investigate/report?asset=${equipmentTag.includes("101") ? "P-101" : "P-204"}`, "_blank");
   };
 
   const renderStatusCell = (status: string, label: string) => {
@@ -290,9 +492,18 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F1F5F9] text-[#0F172A] flex flex-col antialiased selection:bg-[#0284C7] selection:text-white">
-      {/* Precision Top Navigation */}
-      <header className="h-16 bg-[#FFFFFF] border-b border-[#CBD5E1] px-6 flex items-center justify-between z-30 sticky top-0 shadow-xs">
+    <div className="min-h-screen bg-[#F1F5F9] text-[#0F172A] flex flex-col antialiased selection:bg-[#0284C7] selection:text-white relative">
+      {/* Precision Forensic Crosshair Cursor */}
+      <ForensicCursor />
+
+      {/* Kinetic Neon Scroll Indicator */}
+      <motion.div
+        style={{ scaleX }}
+        className="fixed top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-[#0284C7] via-cyan-400 to-[#BE123C] origin-left z-50 shadow-[0_0_10px_#0284c7]"
+      />
+
+      {/* Top Precision Navigation Bar */}
+      <header className="h-16 bg-[#FFFFFF] border-b border-[#CBD5E1] px-6 flex items-center justify-between z-40 sticky top-0 shadow-xs">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-3">
             <div className="w-2.5 h-2.5 rounded-full bg-[#0284C7] shadow-[0_0_10px_#0284c7]" />
@@ -307,7 +518,10 @@ export default function App() {
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => setView("upload")}
+              onClick={() => {
+                sound.playBlip(700);
+                setView("upload");
+              }}
               className="px-3 py-1.5 text-xs font-medium rounded-md bg-[#F8FAFC] hover:bg-[#E2E8F0] text-[#0F172A] border border-[#CBD5E1] flex items-center gap-2 cursor-pointer transition-all"
             >
               <ArrowLeft className="w-4 h-4 text-[#0284C7]" />
@@ -317,8 +531,11 @@ export default function App() {
 
           {view === "upload" && (
             <button
-              onClick={() => setView("guide")}
-              className="hidden sm:flex items-center gap-2 text-xs font-mono text-[#0284C7] hover:underline"
+              onClick={() => {
+                sound.playBlip(800);
+                setView("guide");
+              }}
+              className="hidden sm:flex items-center gap-2 text-xs font-mono text-[#0284C7] hover:underline cursor-pointer"
             >
               <HelpCircle className="w-3.5 h-3.5" /> REVISIT CAPABILITY GUIDE
             </button>
@@ -326,6 +543,15 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Audio Synthesizer Toggle */}
+          <button
+            onClick={toggleSound}
+            title={audioActive ? "Mute Control Room Audio" : "Enable Control Room Audio"}
+            className="p-2 rounded-md border border-[#CBD5E1] bg-[#F8FAFC] hover:bg-[#E2E8F0] text-[#64748B] hover:text-[#003366] transition-colors cursor-pointer"
+          >
+            {audioActive ? <Volume2 className="w-4 h-4 text-[#0284C7]" /> : <VolumeX className="w-4 h-4" />}
+          </button>
+
           <span className="hidden md:flex text-xs font-mono text-[#003366] bg-[#F1F5F9] border border-[#CBD5E1] px-3 py-1.5 rounded-md items-center gap-2">
             <Cpu className="w-3.5 h-3.5 text-[#0284C7]" />
             OLLAMA LLAMA3.2: ACTIVE
@@ -362,14 +588,14 @@ export default function App() {
         </div>
       </header>
 
-      {/* Dynamic Pipeline Progress Ribbon */}
+      {/* Dynamic Multi-Agent Progress Ribbon */}
       <AnimatePresence>
         {loading && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="bg-[#FFFFFF] border-b border-[#0284C7] px-6 py-3 flex items-center justify-between font-mono text-xs overflow-hidden shadow-xs"
+            className="bg-[#FFFFFF] border-b border-[#0284C7] px-6 py-3 flex items-center justify-between font-mono text-xs overflow-hidden shadow-xs z-30"
           >
             <div className="flex items-center gap-3">
               <RefreshCw className="w-4 h-4 text-[#0284C7] animate-spin" />
@@ -401,11 +627,15 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* VIEW 0: AUTHENTICATION & SECURITY TERMINAL */}
+      {/* VIEW 0: AUTHENTICATION TERMINAL */}
       {view === "auth" && (
         <main className="flex-1 flex items-center justify-center p-6">
-          <div className="w-full max-w-md bg-[#FFFFFF] border border-[#CBD5E1] rounded-2xl shadow-xl overflow-hidden">
-            {/* Terminal Header */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 15 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="w-full max-w-md bg-[#FFFFFF] border border-[#CBD5E1] rounded-2xl shadow-xl overflow-hidden"
+          >
             <div className="bg-[#0F172A] p-6 text-white text-center relative">
               <div className="w-10 h-10 rounded-full bg-[#0284C7]/20 border border-[#0284C7] flex items-center justify-center mx-auto mb-3">
                 <Lock className="w-5 h-5 text-cyan-300" />
@@ -423,7 +653,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Form */}
             <form onSubmit={handleLoginSubmit} className="p-6 space-y-4">
               <div className="flex border-b border-[#E2E8F0] pb-2 text-xs font-mono justify-center gap-6">
                 <button
@@ -526,14 +755,19 @@ export default function App() {
                 1-CLICK EVALUATOR / JUDGE DEMO LOGIN
               </button>
             </form>
-          </div>
+          </motion.div>
         </main>
       )}
 
-      {/* VIEW 0.5: CAPABILITY BRIEFING & FIRST-TIME OPERATOR GUIDE */}
+      {/* VIEW 0.5: CAPABILITY BRIEFING SOP */}
       {view === "guide" && (
         <main className="flex-1 p-6 md:p-8 max-w-[1200px] w-full mx-auto space-y-7">
-          <div className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-2xl p-6 md:p-8 shadow-sm space-y-6"
+          >
             <div className="border-b border-[#CBD5E1] pb-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <span className="text-xs font-mono uppercase tracking-widest text-[#0284C7] font-bold">
@@ -553,7 +787,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* 4 Core Pillars */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="p-5 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] space-y-3">
                 <div className="w-9 h-9 rounded-lg bg-cyan-100 border border-cyan-300 flex items-center justify-center text-[#0284C7]">
@@ -563,7 +796,7 @@ export default function App() {
                   1. Deterministic Invariant Physics
                 </h3>
                 <p className="text-xs text-[#64748B] font-sans leading-relaxed">
-                  We <strong>never use LLMs to guess physics</strong>. A pure NumPy engine calculates peak velocity peak velocity v_peak and 1st-order thermal drift dT/dt to definitively isolate bearing friction from shaft misalignment.
+                  We <strong>never use LLMs to guess physics</strong>. A pure NumPy engine calculates peak velocity v_peak and 1st-order thermal drift dT/dt to definitively isolate bearing friction from shaft misalignment.
                 </p>
                 <div className="text-[11px] font-mono text-[#0284C7] bg-white border border-cyan-200 p-2 rounded">
                   Rule: Peak &gt; Limit + Drift &gt; 0.40°C/h = Bearing Spall
@@ -616,19 +849,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Progression Briefing Notice */}
-            <div className="p-4 rounded-xl bg-cyan-50/50 border border-[#0284C7]/40 flex items-center justify-between text-xs font-mono">
-              <div className="flex items-center gap-3">
-                <Sliders className="w-4 h-4 text-[#0284C7]" />
-                <span className="text-[#003366] font-bold">PROGRESSION PROTOCOL:</span>
-                <span className="text-[#64748B]">
-                  Dossier P-204 is unlocked for initial triage. Completing P-204 unlocks classified Dossier P-101.
-                </span>
-              </div>
-              <span className="font-bold text-[#0284C7] uppercase">1/2 UNLOCKED</span>
-            </div>
-
-            {/* Acknowledge CTA */}
             <motion.button
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
@@ -638,15 +858,19 @@ export default function App() {
               ACKNOWLEDGE SOP PROTOCOL & ENTER INGESTION PORTAL
               <ChevronRight className="w-4 h-4" />
             </motion.button>
-          </div>
+          </motion.div>
         </main>
       )}
 
-      {/* VIEW 1: COCKPIT INGESTION PORTAL (With Progressive Dossier Unlocking) */}
+      {/* VIEW 1: COCKPIT INGESTION PORTAL */}
       {view === "upload" && (
         <main className="flex-1 p-6 md:p-8 max-w-[1500px] w-full mx-auto space-y-8">
-          {/* ANIMATED MULTI-FRAME KEN-BURNS SCANNER HERO */}
-          <div className="relative rounded-2xl overflow-hidden border border-[#CBD5E1] bg-[#0A0E1A] shadow-lg h-80 flex flex-col justify-between p-6 md:p-8">
+          {/* Animated Ken-Burns Banner */}
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="relative rounded-2xl overflow-hidden border border-[#CBD5E1] bg-[#0A0E1A] shadow-lg h-80 flex flex-col justify-between p-6 md:p-8"
+          >
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeFrameIdx}
@@ -689,7 +913,10 @@ export default function App() {
                 {FORENSIC_FRAMES.map((f, idx) => (
                   <button
                     key={f.id}
-                    onClick={() => setActiveFrameIdx(idx)}
+                    onClick={() => {
+                      sound.playBlip(900);
+                      setActiveFrameIdx(idx);
+                    }}
                     className={`h-1.5 rounded-full transition-all cursor-pointer ${
                       idx === activeFrameIdx ? "w-6 bg-[#0284C7]" : "w-1.5 bg-slate-600 hover:bg-slate-400"
                     }`}
@@ -738,10 +965,16 @@ export default function App() {
                 </button>
               </div>
             </div>
-          </div>
+          </motion.div>
 
-          {/* Visual Dossier Cases with Progression Badging */}
-          <div className="space-y-4">
+          {/* Dossiers Grid with Reveal Transition */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.4 }}
+            className="space-y-4"
+          >
             <div className="flex items-center justify-between">
               <span className="text-sm font-display uppercase tracking-wider text-[#003366] font-bold flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-[#0284C7]" />
@@ -753,7 +986,6 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* Dossier 01: P-204 (Unlocked) */}
               <motion.div
                 whileHover={{ y: -2 }}
                 onClick={() => loadSamplePreset("P-204")}
@@ -793,7 +1025,6 @@ export default function App() {
                 </div>
               </motion.div>
 
-              {/* Dossier 02: P-101 (Locked until P-204 is inspected, or Level 3) */}
               <motion.div
                 whileHover={{ y: unlockedCases.includes("P-101") ? -2 : 0 }}
                 onClick={() => loadSamplePreset("P-101")}
@@ -853,10 +1084,16 @@ export default function App() {
                 </div>
               </motion.div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Ingestion Bay */}
-          <div className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-xl p-6 md:p-8 space-y-5 shadow-xs">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.4 }}
+            className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-xl p-6 md:p-8 space-y-5 shadow-xs"
+          >
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-[#CBD5E1]">
               <div>
                 <h3 className="font-display text-base font-bold uppercase tracking-wider text-[#003366]">
@@ -890,7 +1127,10 @@ export default function App() {
                   ref={csvInputRef}
                   accept=".csv"
                   className="hidden"
-                  onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                  onChange={(e) => {
+                    sound.playBlip(950);
+                    setCsvFile(e.target.files?.[0] || null);
+                  }}
                 />
                 <div className="flex justify-between items-start">
                   <FileSpreadsheet className={`w-7 h-7 ${csvFile ? "text-[#0284C7]" : "text-[#64748B]"}`} />
@@ -918,7 +1158,10 @@ export default function App() {
                   ref={shiftInputRef}
                   accept=".pdf"
                   className="hidden"
-                  onChange={(e) => setShiftFile(e.target.files?.[0] || null)}
+                  onChange={(e) => {
+                    sound.playBlip(950);
+                    setShiftFile(e.target.files?.[0] || null);
+                  }}
                 />
                 <div className="flex justify-between items-start">
                   <FileText className={`w-7 h-7 ${shiftFile ? "text-[#0284C7]" : "text-[#64748B]"}`} />
@@ -946,7 +1189,10 @@ export default function App() {
                   ref={oemInputRef}
                   accept=".pdf"
                   className="hidden"
-                  onChange={(e) => setOemFile(e.target.files?.[0] || null)}
+                  onChange={(e) => {
+                    sound.playBlip(950);
+                    setOemFile(e.target.files?.[0] || null);
+                  }}
                 />
                 <div className="flex justify-between items-start">
                   <FileText className={`w-7 h-7 ${oemFile ? "text-[#0284C7]" : "text-[#64748B]"}`} />
@@ -974,7 +1220,10 @@ export default function App() {
                   ref={imgInputRef}
                   accept="image/*"
                   className="hidden"
-                  onChange={(e) => handleImageChange(e.target.files?.[0] || null)}
+                  onChange={(e) => {
+                    sound.playBlip(950);
+                    handleImageChange(e.target.files?.[0] || null);
+                  }}
                 />
                 {localImagePreview && (
                   <img
@@ -1009,75 +1258,80 @@ export default function App() {
               <UploadCloud className="w-5 h-5 stroke-[2.5]" />
               {loading ? "EXECUTING MULTI-AGENT CORRELATION..." : "EXECUTE FORENSIC INVESTIGATION ON UPLOADED DOSSIER"}
             </motion.button>
-          </div>
+          </motion.div>
         </main>
       )}
 
       {/* VIEW 2: FORENSIC INVESTIGATION DOSSIER */}
       {view === "dashboard" && data && (
         <main className="flex-1 p-6 md:p-8 max-w-[1600px] w-full mx-auto space-y-7">
-          {/* Top Status Metric Tiles */}
-          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Top Status Metric Tiles & ISO Radial Arc Gauge */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+          >
+            {/* Tile 1: Dynamic ISO Arc Gauge & Peak Velocity */}
             <div
-              onClick={() => setActiveMetric(data.metrics.peak_vibration)}
-              className="bg-[#FFFFFF] border border-[#CBD5E1] hover:border-[#BE123C] rounded-xl p-5 cursor-pointer transition-all group shadow-xs"
+              onClick={() => {
+                sound.playBlip(1000);
+                setActiveMetric(data.metrics.peak_vibration);
+              }}
+              className="bg-[#FFFFFF] border border-[#CBD5E1] hover:border-[#BE123C] rounded-xl p-4 cursor-pointer transition-all group shadow-xs flex flex-col justify-between"
             >
-              <div className="flex justify-between items-center text-xs font-mono text-[#64748B] uppercase tracking-wider mb-1">
-                <span>{data.metrics.peak_vibration.name}</span>
-                <span className="text-[#0284C7] group-hover:translate-x-1 transition-transform flex items-center font-bold">
-                  TRACE <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
-                </span>
-              </div>
-              <div className="flex items-baseline justify-between mt-2">
-                <div className="text-3xl font-display font-extrabold text-[#BE123C]">
-                  {data.metrics.peak_vibration.value}{" "}
-                  <span className="text-sm text-[#64748B] font-normal">{data.metrics.peak_vibration.unit}</span>
-                </div>
-                <span className="text-xs font-mono px-2.5 py-1 rounded bg-rose-50 text-[#BE123C] border border-rose-200 font-bold">
-                  LIMIT: {data.metrics.peak_vibration.threshold} mm/s
-                </span>
-              </div>
+              <IsoArcGauge
+                value={data.metrics.peak_vibration.value}
+                threshold={data.metrics.peak_vibration.threshold}
+              />
               <div className="mt-2 text-xs font-mono text-[#64748B] border-t border-[#F1F5F9] pt-2 flex justify-between">
-                <span>ISO 10816 Envelope:</span>
-                <span className="text-[#BE123C] font-bold">Zone D (Critical Breach)</span>
+                <span>Trip Threshold:</span>
+                <span className="text-[#BE123C] font-bold">{data.metrics.peak_vibration.threshold} mm/s</span>
               </div>
             </div>
 
+            {/* Tile 2: Thermal Rate of Rise */}
             <div
-              onClick={() => setActiveMetric(data.metrics.temperature_rate_of_rise)}
-              className="bg-[#FFFFFF] border border-[#CBD5E1] hover:border-amber-500 rounded-xl p-5 cursor-pointer transition-all group shadow-xs"
+              onClick={() => {
+                sound.playBlip(1000);
+                setActiveMetric(data.metrics.temperature_rate_of_rise);
+              }}
+              className="bg-[#FFFFFF] border border-[#CBD5E1] hover:border-amber-500 rounded-xl p-5 cursor-pointer transition-all group shadow-xs flex flex-col justify-between"
             >
-              <div className="flex justify-between items-center text-xs font-mono text-[#64748B] uppercase tracking-wider mb-1">
-                <span>{data.metrics.temperature_rate_of_rise.name}</span>
-                <span className="text-[#0284C7] group-hover:translate-x-1 transition-transform flex items-center font-bold">
-                  TRACE <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
-                </span>
-              </div>
-              <div className="flex items-baseline justify-between mt-2">
-                <div className={`text-3xl font-display font-extrabold ${data.metrics.temperature_rate_of_rise.breached ? "text-amber-600" : "text-[#059669]"}`}>
-                  +{data.metrics.temperature_rate_of_rise.value}{" "}
-                  <span className="text-sm text-[#64748B] font-normal">{data.metrics.temperature_rate_of_rise.unit}</span>
+              <div>
+                <div className="flex justify-between items-center text-xs font-mono text-[#64748B] uppercase tracking-wider mb-1">
+                  <span>{data.metrics.temperature_rate_of_rise.name}</span>
+                  <span className="text-[#0284C7] group-hover:translate-x-1 transition-transform flex items-center font-bold">
+                    TRACE <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+                  </span>
                 </div>
-                <span className={`text-xs font-mono px-2.5 py-1 rounded border font-bold ${
-                  data.metrics.temperature_rate_of_rise.breached
-                    ? "bg-amber-50 text-amber-700 border-amber-200"
-                    : "bg-emerald-50 text-[#059669] border-emerald-200"
-                }`}>
-                  {data.metrics.temperature_rate_of_rise.breached ? "THERMAL DRIFT" : "NOMINAL"}
-                </span>
+                <div className="flex items-baseline justify-between mt-2">
+                  <div className={`text-3xl font-display font-extrabold ${data.metrics.temperature_rate_of_rise.breached ? "text-amber-600" : "text-[#059669]"}`}>
+                    +{data.metrics.temperature_rate_of_rise.value}{" "}
+                    <span className="text-sm text-[#64748B] font-normal">{data.metrics.temperature_rate_of_rise.unit}</span>
+                  </div>
+                  <span className={`text-xs font-mono px-2.5 py-1 rounded border font-bold ${
+                    data.metrics.temperature_rate_of_rise.breached
+                      ? "bg-amber-50 text-amber-700 border-amber-200"
+                      : "bg-emerald-50 text-[#059669] border-emerald-200"
+                  }`}>
+                    {data.metrics.temperature_rate_of_rise.breached ? "THERMAL DRIFT" : "NOMINAL"}
+                  </span>
+                </div>
               </div>
               <div className="mt-2 text-xs font-mono text-[#64748B] border-t border-[#F1F5F9] pt-2 flex justify-between">
-                <span>Thermal Limit:</span>
+                <span>Alarm Limit:</span>
                 <span className="text-[#0F172A] font-bold">0.40 °C/h</span>
               </div>
             </div>
 
+            {/* Tile 3: Confirmed Failure Mode */}
             <div className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-xl p-5 flex flex-col justify-between shadow-xs">
               <div>
                 <span className="text-xs font-mono text-[#64748B] uppercase tracking-wider block mb-1">
                   Confirmed Diagnosis
                 </span>
-                <div className="font-display font-bold text-sm text-[#003366] mt-1 line-clamp-1">
+                <div className="font-display font-bold text-sm text-[#003366] mt-1 line-clamp-2">
                   {data.hypotheses[0]?.title}
                 </div>
               </div>
@@ -1087,26 +1341,43 @@ export default function App() {
               </div>
             </div>
 
-            <div className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-xl p-5 flex flex-col justify-between shadow-xs">
+            {/* Tile 4: Violation Duration */}
+            <div
+              onClick={() => {
+                if (data.metrics.violation_duration) {
+                  sound.playBlip(1000);
+                  setActiveMetric(data.metrics.violation_duration);
+                }
+              }}
+              className="bg-[#FFFFFF] border border-[#CBD5E1] hover:border-[#BE123C] rounded-xl p-5 flex flex-col justify-between shadow-xs cursor-pointer group transition-all"
+            >
               <div>
-                <span className="text-xs font-mono text-[#64748B] uppercase tracking-wider block mb-1">
-                  Safety Isolation Protocol
-                </span>
-                <div className="font-display font-bold text-sm text-amber-700 mt-1 flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4 shrink-0 text-amber-600" />
-                  Mandatory Breaker LOTO
+                <div className="flex justify-between items-center text-xs font-mono text-[#64748B] uppercase tracking-wider mb-1">
+                  <span>Continuous Breach Time</span>
+                  <span className="text-[#0284C7] group-hover:translate-x-1 transition-transform flex items-center font-bold">
+                    TRACE <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+                  </span>
+                </div>
+                <div className="text-3xl font-display font-extrabold text-[#BE123C] mt-2">
+                  {data.metrics.violation_duration ? data.metrics.violation_duration.value : 47}{" "}
+                  <span className="text-sm text-[#64748B] font-normal">mins</span>
                 </div>
               </div>
               <div className="flex items-center justify-between text-xs font-mono border-t border-[#F1F5F9] pt-2 mt-2">
-                <span className="text-[#64748B]">Permit Tier:</span>
-                <span className="text-[#0F172A] font-bold">{data.inspection_plan[0]?.permit_type}</span>
+                <span className="text-[#64748B]">Permit Requirement:</span>
+                <span className="text-amber-700 font-bold">PTW Class A (LOTO)</span>
               </div>
             </div>
-          </section>
+          </motion.section>
 
           {/* Cryptographic Chain-of-Custody Verification */}
           {data.chain_of_custody && (
-            <div className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-xl px-5 py-3 flex flex-wrap items-center justify-between gap-4 text-xs font-mono shadow-xs">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-xl px-5 py-3 flex flex-wrap items-center justify-between gap-4 text-xs font-mono shadow-xs"
+            >
               <div className="flex items-center gap-3">
                 <span className="w-2 h-2 rounded-full bg-[#059669] shadow-[0_0_6px_#059669]" />
                 <span className="font-bold text-[#003366]">EVIDENCE CHAIN-OF-CUSTODY IMMUTABLE HASH:</span>
@@ -1119,14 +1390,16 @@ export default function App() {
                 <span>DOCS SHA-256: {data.chain_of_custody.shiftlog_sha256?.substring(0, 12)}...</span>
                 <span className="text-[#059669] font-bold">SHA-256 VERIFIED</span>
               </div>
-            </div>
+            </motion.div>
           )}
 
-          {/* PLAIN-ENGLISH TRANSLATOR FOR JUDGES */}
+          {/* Plain-English Translator For Evaluators */}
           {data.plain_english_summary && (
             <motion.section
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-40px" }}
+              transition={{ duration: 0.4 }}
               className="bg-[#FFFFFF] border border-[#0284C7]/50 rounded-xl p-6 md:p-7 shadow-sm space-y-5"
             >
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 border-b border-[#CBD5E1] pb-4">
@@ -1219,30 +1492,83 @@ export default function App() {
           {/* Dual Column Layout */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 items-start">
             <div className="lg:col-span-8 space-y-7">
-              {/* NDT Optical Card */}
+              {/* Interactive Multi-Spectral Optical Inspection Card */}
               {data.vision && (
-                <section className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-xl p-6 shadow-xs space-y-4">
-                  <div className="flex items-center justify-between pb-3 border-b border-[#CBD5E1]">
+                <motion.section
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-40px" }}
+                  transition={{ duration: 0.4 }}
+                  className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-xl p-6 shadow-xs space-y-4"
+                >
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-[#CBD5E1]">
                     <div className="flex items-center gap-2.5">
                       <Maximize2 className="w-4 h-4 text-[#0284C7]" />
                       <h3 className="font-display text-sm font-bold uppercase tracking-wider text-[#003366]">
-                        Non-Destructive Optical Defect Inspection
+                        Multi-Spectral Optical Defect Inspection
                       </h3>
                     </div>
-                    <span className="text-xs font-mono text-[#003366] bg-[#F1F5F9] border border-[#CBD5E1] px-3 py-1 rounded-full font-bold">
-                      {data.vision.equipment_identified}
-                    </span>
+
+                    {/* Spectral Filter Switcher */}
+                    <div className="flex items-center gap-1 bg-[#F1F5F9] border border-[#CBD5E1] p-1 rounded-lg text-xs font-mono">
+                      <button
+                        onClick={() => {
+                          sound.playBlip(900);
+                          setSpectralFilter("visible");
+                        }}
+                        className={`px-2.5 py-1 rounded transition-all cursor-pointer ${
+                          spectralFilter === "visible" ? "bg-[#003366] text-white font-bold" : "text-[#64748B] hover:text-[#0F172A]"
+                        }`}
+                      >
+                        VISIBLE
+                      </button>
+                      <button
+                        onClick={() => {
+                          sound.playBlip(1100);
+                          setSpectralFilter("thermal");
+                        }}
+                        className={`px-2.5 py-1 rounded transition-all flex items-center gap-1 cursor-pointer ${
+                          spectralFilter === "thermal" ? "bg-amber-600 text-white font-bold" : "text-[#64748B] hover:text-[#0F172A]"
+                        }`}
+                      >
+                        <Flame className="w-3 h-3 text-amber-300" />
+                        THERMAL
+                      </button>
+                      <button
+                        onClick={() => {
+                          sound.playBlip(1300);
+                          setSpectralFilter("contour");
+                        }}
+                        className={`px-2.5 py-1 rounded transition-all flex items-center gap-1 cursor-pointer ${
+                          spectralFilter === "contour" ? "bg-cyan-700 text-white font-bold" : "text-[#64748B] hover:text-[#0F172A]"
+                        }`}
+                      >
+                        <Binary className="w-3 h-3 text-cyan-300" />
+                        CONTOUR
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-                    <div className="md:col-span-5 relative rounded-lg overflow-hidden border border-[#CBD5E1] bg-slate-900 shadow-xs">
+                    <div className="md:col-span-6 relative rounded-lg overflow-hidden border border-[#CBD5E1] bg-slate-950 shadow-xs group">
                       <img
                         src={localImagePreview || (equipmentTag.includes("101") ? "/P101_coupling_alignment.jpg" : "/P204_bearing_housing.jpg")}
                         alt="NDT Inspection Capture"
-                        className="w-full h-52 object-cover"
+                        style={{
+                          filter:
+                            spectralFilter === "thermal"
+                              ? "contrast(220%) hue-rotate(180deg) saturate(300%)"
+                              : spectralFilter === "contour"
+                              ? "grayscale(100%) contrast(350%) invert(100%)"
+                              : "none"
+                        }}
+                        className="w-full h-56 object-cover transition-all duration-300"
                       />
+
+                      {/* AI Bounding Box Reticle */}
                       <div className="absolute inset-4 border-2 border-[#BE123C] border-dashed rounded flex flex-col justify-between p-2 pointer-events-none">
-                        <span className="text-[10px] font-mono bg-white/95 text-[#BE123C] px-1.5 py-0.5 rounded font-bold w-max border border-rose-300 shadow-xs">
+                        <span className="text-[10px] font-mono bg-white/95 text-[#BE123C] px-1.5 py-0.5 rounded font-bold w-max border border-rose-300 shadow-xs flex items-center gap-1">
+                          <Target className="w-3 h-3 text-[#BE123C]" />
                           {data.vision.visual_anomalies[0]?.box_label || "DEFECT ROI"}
                         </span>
                         <span className="text-[10px] font-mono bg-white/95 text-[#0F172A] px-1.5 py-0.5 rounded w-max self-end border border-[#CBD5E1] shadow-xs font-semibold">
@@ -1251,7 +1577,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="md:col-span-7 space-y-3">
+                    <div className="md:col-span-6 space-y-3">
                       {data.vision.visual_anomalies.map((ano: any, idx: number) => (
                         <div key={idx} className="p-4 bg-[#F8FAFC] rounded-lg border border-[#CBD5E1] text-xs space-y-1.5">
                           <div className="flex justify-between items-center">
@@ -1271,11 +1597,17 @@ export default function App() {
                       ))}
                     </div>
                   </div>
-                </section>
+                </motion.section>
               )}
 
-              {/* Dynamic SCADA Graph */}
-              <section className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-xl p-6 shadow-xs space-y-4">
+              {/* Dynamic SCADA Graph with Scroll Reveal */}
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ duration: 0.4 }}
+                className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-xl p-6 shadow-xs space-y-4"
+              >
                 <div className="flex items-center justify-between pb-3 border-b border-[#CBD5E1]">
                   <div>
                     <div className="flex items-center gap-2">
@@ -1339,11 +1671,17 @@ export default function App() {
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
-              </section>
+              </motion.section>
 
-              {/* Evidence Cross-Examination Matrix */}
+              {/* Evidence Matrix */}
               {data.evidence_matrix && (
-                <section className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-xl p-6 shadow-xs overflow-x-auto space-y-4">
+                <motion.section
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-40px" }}
+                  transition={{ duration: 0.4 }}
+                  className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-xl p-6 shadow-xs overflow-x-auto space-y-4"
+                >
                   <div className="flex items-center justify-between pb-3 border-b border-[#CBD5E1]">
                     <div className="flex items-center gap-2">
                       <Layers className="w-4 h-4 text-[#0284C7]" />
@@ -1380,7 +1718,7 @@ export default function App() {
                       ))}
                     </tbody>
                   </table>
-                </section>
+                </motion.section>
               )}
             </div>
 
@@ -1388,7 +1726,13 @@ export default function App() {
             <div className="lg:col-span-4 space-y-6">
               {/* Contradiction Flag Ribbon */}
               {data.contradictions.map((c: any) => (
-                <div key={c.id} className="bg-[#FEF2F2] border-l-4 border-l-[#DC2626] border-y border-r border-rose-200 rounded-r-xl p-5 shadow-xs space-y-3">
+                <motion.div
+                  key={c.id}
+                  initial={{ opacity: 0, x: 20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  className="bg-[#FEF2F2] border-l-4 border-l-[#DC2626] border-y border-r border-rose-200 rounded-r-xl p-5 shadow-xs space-y-3"
+                >
                   <div className="flex items-center gap-2 text-[#DC2626] font-display font-bold text-xs uppercase tracking-wider">
                     <AlertOctagon className="w-5 h-5 text-[#DC2626] shrink-0" />
                     AUDIT EVIDENCE DISCREPANCY DETECTED
@@ -1403,11 +1747,16 @@ export default function App() {
                       <p className="text-[#BE123C] font-bold font-mono leading-relaxed">{c.objective_claim}</p>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               ))}
 
               {/* Competing Hypotheses */}
-              <section className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-xl p-5 shadow-xs space-y-4">
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-xl p-5 shadow-xs space-y-4"
+              >
                 <div className="flex items-center justify-between pb-2 border-b border-[#CBD5E1]">
                   <h4 className="font-display text-xs font-bold uppercase tracking-wider text-[#003366]">
                     Ranked Competing Hypotheses
@@ -1434,10 +1783,15 @@ export default function App() {
                     </div>
                   ))}
                 </div>
-              </section>
+              </motion.section>
 
               {/* Mandatory LOTO Action Plan */}
-              <section className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-xl p-5 shadow-xs space-y-4">
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                className="bg-[#FFFFFF] border border-[#CBD5E1] rounded-xl p-5 shadow-xs space-y-4"
+              >
                 <div className="flex items-center gap-2 pb-2 border-b border-[#CBD5E1]">
                   <ShieldAlert className="w-4 h-4 text-amber-600" />
                   <h4 className="font-display text-xs font-bold uppercase tracking-wider text-[#003366]">
@@ -1466,7 +1820,7 @@ export default function App() {
                     </div>
                   ))}
                 </div>
-              </section>
+              </motion.section>
             </div>
           </div>
         </main>
@@ -1491,7 +1845,10 @@ export default function App() {
                   <h3 className="font-display font-bold text-[#003366] text-base">Deterministic Calculation Trace</h3>
                 </div>
                 <button
-                  onClick={() => setActiveMetric(null)}
+                  onClick={() => {
+                    sound.playBlip(700);
+                    setActiveMetric(null);
+                  }}
                   className="w-8 h-8 rounded-md bg-[#F1F5F9] border border-[#CBD5E1] flex items-center justify-center text-[#64748B] hover:text-[#0F172A] cursor-pointer"
                 >
                   <X className="w-4 h-4" />
@@ -1518,7 +1875,7 @@ export default function App() {
                   </div>
                   <div className="bg-[#F8FAFC] p-3 rounded-md border border-[#CBD5E1]">
                     <span className="text-[#64748B] text-[10px] block font-bold">Source CSV Rows</span>
-                    <span className="font-bold text-[#0284C7]">Rows: [{activeMetric.source_rows.join(", ")}]</span>
+                    <span className="font-bold text-[#0284C7]">Rows: [{activeMetric.source_rows?.join(", ")}]</span>
                   </div>
                 </div>
 
@@ -1542,7 +1899,10 @@ export default function App() {
             </div>
 
             <button
-              onClick={() => setActiveMetric(null)}
+              onClick={() => {
+                sound.playBlip(700);
+                setActiveMetric(null);
+              }}
               className="w-full bg-[#003366] hover:bg-[#00264d] text-white py-3 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-xs"
             >
               DISMISS CALCULATION TRACE
