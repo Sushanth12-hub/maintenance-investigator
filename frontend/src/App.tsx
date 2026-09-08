@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { motion, AnimatePresence, useScroll, useSpring, useMotionValue } from "framer-motion";
+import { motion, AnimatePresence, useScroll, useSpring } from "framer-motion";
 import {
   AlertOctagon,
   ShieldAlert,
@@ -100,62 +100,64 @@ class SoundController {
 
 const sound = new SoundController();
 
-// --- PRECISION FORENSIC LASER CURSOR ---
+// --- CLASSIC INDUSTRIAL PRECISION CURSOR ---
 function ForensicCursor() {
-  const cursorX = useMotionValue(-100);
-  const cursorY = useMotionValue(-100);
+  const [pos, setPos] = useState({ x: -100, y: -100 });
   const [isHovered, setIsHovered] = useState(false);
-  const [coords, setCoords] = useState({ x: 0, y: 0 });
-
-  const ringSpring = { damping: 26, stiffness: 320 };
-  const ringX = useSpring(cursorX, ringSpring);
-  const ringY = useSpring(cursorY, ringSpring);
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      cursorX.set(e.clientX);
-      cursorY.set(e.clientY);
-      setCoords({ x: Math.round(e.clientX), y: Math.round(e.clientY) });
+      setPos({ x: e.clientX, y: e.clientY });
+      if (!isVisible) setIsVisible(true);
 
       const target = e.target as HTMLElement;
-      const interactive = target.closest("button, a, input, select, [role='button'], .cursor-pointer");
-      setIsHovered(!!interactive);
+      const isInput = target.closest("input, textarea, select");
+      const interactive = target.closest("button, a, [role='button'], .cursor-pointer");
+      
+      setIsHovered(!!interactive && !isInput);
     };
 
+    const handleMouseLeave = () => setIsVisible(false);
+    const handleMouseEnter = () => setIsVisible(true);
+
     window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, [cursorX, cursorY]);
+    document.addEventListener("mouseleave", handleMouseLeave);
+    document.addEventListener("mouseenter", handleMouseEnter);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseleave", handleMouseLeave);
+      document.removeEventListener("mouseenter", handleMouseEnter);
+    };
+  }, [isVisible]);
+
+  if (!isVisible) return null;
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[9999] hidden lg:block overflow-hidden">
-      {/* Outer Reticle Ring */}
-      <motion.div
-        style={{ x: ringX, y: ringY }}
-        className={`fixed top-0 left-0 -translate-x-1/2 -translate-y-1/2 rounded-full border transition-all duration-200 flex items-center justify-center ${
+      {/* Classic Hairline Precision Ring */}
+      <div
+        style={{
+          transform: `translate3d(${pos.x}px, ${pos.y}px, 0) translate(-50%, -50%)`,
+          transition: "width 0.12s ease-out, height 0.12s ease-out, border-color 0.12s ease-out, background-color 0.12s ease-out",
+        }}
+        className={`absolute rounded-full border pointer-events-none ${
           isHovered
-            ? "w-12 h-12 border-[#BE123C] bg-rose-500/10 scale-110 shadow-[0_0_12px_rgba(190,18,60,0.4)]"
-            : "w-8 h-8 border-[#0284C7] bg-[#0284C7]/5 shadow-[0_0_8px_rgba(2,132,199,0.3)]"
-        }`}
-      >
-        <div className="absolute w-full h-[1px] bg-cyan-400/40" />
-        <div className="absolute h-full w-[1px] bg-cyan-400/40" />
-      </motion.div>
-
-      {/* Center Laser Point */}
-      <motion.div
-        style={{ x: cursorX, y: cursorY }}
-        className={`fixed top-0 left-0 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full shadow-sm transition-colors ${
-          isHovered ? "bg-[#BE123C]" : "bg-[#0284C7]"
+            ? "w-7 h-7 border-[#003366] bg-[#003366]/10"
+            : "w-4 h-4 border-[#64748B]/60 bg-transparent"
         }`}
       />
 
-      {/* Live Coordinate Telemetry Badge */}
-      <motion.div
-        style={{ x: ringX, y: ringY }}
-        className="fixed top-4 left-4 font-mono text-[9px] text-[#0284C7] bg-white/90 backdrop-blur-xs px-1.5 py-0.5 rounded border border-[#CBD5E1] shadow-xs select-none"
-      >
-        X:{coords.x} Y:{coords.y}
-      </motion.div>
+      {/* Instant Center Target Dot */}
+      <div
+        style={{
+          transform: `translate3d(${pos.x}px, ${pos.y}px, 0) translate(-50%, -50%)`,
+        }}
+        className={`absolute rounded-full pointer-events-none transition-transform duration-75 ${
+          isHovered ? "w-1.5 h-1.5 bg-[#003366]" : "w-1 h-1 bg-[#334155]"
+        }`}
+      />
     </div>
   );
 }
