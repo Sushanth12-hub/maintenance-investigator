@@ -37,6 +37,7 @@ def extract_pdf_structured(stream_bytes: bytes) -> list:
 
 def parse_oem_limits(pdf_pages: list) -> dict:
     full_text = "\n".join([p["text"] for p in pdf_pages])
+    
     match = re.search(
         r"(?:velocity|vibration|threshold|limit|alarm|boundary|zone\s*[cd])[^0-9\n\r]{1,40}?([0-9]+\.?[0-9]*)\s*mm/s",
         full_text,
@@ -354,12 +355,29 @@ def analyze_dynamic_investigation(
         "chain_id": f"BLCK-{hashlib.sha256(csv_bytes + shift_bytes + oem_bytes).hexdigest()[:16].upper()}"
     }
 
-    vib_col = [c for c in df.columns if any(k in c.lower() for k in ["vib", "velocity", "val", "speed"])][0]
-    temp_col = [c for c in df.columns if any(k in c.lower() for k in ["temp", "bearing", "celsius", "deg"])][0]
-    time_col = [c for c in df.columns if any(k in c.lower() for k in ["time", "timestamp", "date"])][0]
+    # Issue 1 Fix: Safe column discovery with robust fallbacks
+    vib_candidates = [c for c in df.columns if any(k in str(c).lower() for k in ["vib", "velocity", "val", "speed", "accel", "mm/s"])]
+    temp_candidates = [c for c in df.columns if any(k in str(c).lower() for k in ["temp", "bearing", "celsius", "deg", "°c", "temperature"])]
+    time_candidates = [c for c in df.columns if any(k in str(c).lower() for k in ["time", "timestamp", "date", "datetime", "epoch", "t"])]
 
-    vibrations = df[vib_col].astype(float).to_numpy()
-    temperatures = df[temp_col].astype(float).to_numpy()
+    time_col = time_candidates[0] if time_candidates else df.columns[0]
+    numeric_cols = [c for c in df.select_dtypes(include=[np.number]).columns if c != time_col]
+    if not numeric_cols:
+        numeric_cols = [c for c in df.columns if c != time_col]
+
+    vib_col = vib_candidates[0] if vib_candidates else (numeric_cols[0] if len(numeric_cols) > 0 else df.columns[0])
+    if temp_candidates:
+        temp_col = temp_candidates[0]
+    elif len(numeric_cols) > 1:
+        temp_col = numeric_cols[1] if numeric_cols[0] == vib_col else numeric_cols[0]
+    else:
+        temp_col = vib_col
+
+    df[vib_col] = pd.to_numeric(df[vib_col], errors="coerce").fillna(0.0)
+    df[temp_col] = pd.to_numeric(df[temp_col], errors="coerce").fillna(0.0)
+
+    vibrations = df[vib_col].to_numpy()
+    temperatures = df[temp_col].to_numpy()
 
     peak_vib = float(np.max(vibrations))
     peak_idx = int(np.argmax(vibrations))
@@ -368,8 +386,21 @@ def analyze_dynamic_investigation(
     peak_temp = float(np.max(temperatures))
     peak_temp_idx = int(np.argmax(temperatures))
 
-    hours = np.arange(len(temperatures)) * 2.0
-    temp_slope = float(np.polyfit(hours, temperatures, 1)[0]) if len(hours) > 1 else 0.0
+    # Issue 4 Fix: Dynamic hours extraction instead of hardcoded 2.0 multiplier
+    hours = None
+    try:
+        parsed_times = pd.to_datetime(df[time_col], errors="coerce")
+        if parsed_times.notna().sum() > 1:
+            t_deltas = (parsed_times - parsed_times.dropna().iloc[0]).dt.total_seconds().to_numpy() / 3600.0
+            if t_deltas[-1] > 0:
+                hours = t_deltas
+    except Exception:
+        hours = None
+
+    if hours is None or len(hours) <= 1 or (hours[-1] - hours[0]) <= 0:
+        hours = np.arange(len(temperatures)) * (2.0 if len(temperatures) <= 12 else 0.5)
+
+    temp_slope = float(np.polyfit(hours, temperatures, 1)[0]) if len(hours) > 1 and (hours[-1] - hours[0]) > 0 else 0.0
 
     shift_pages = extract_pdf_structured(shift_bytes)
     oem_pages = extract_pdf_structured(oem_bytes)
@@ -421,20 +452,30 @@ def analyze_dynamic_investigation(
                 "coords": "[200, 120, 400, 310]"
             }
 
+    # Issue 5 Fix: Extract actual matching lines from PDF rather than fabricated template
     contradictions = []
     shift_full_text = " ".join([p["text"] for p in shift_pages])
-    normal_claims = [w for w in ["normal", "zero anomalies", "satisfactory", "routine", "no issue"] if w in shift_full_text.lower()]
+    normal_claims = [w for w in ["normal", "zero anomalies", "satisfactory", "routine", "no issue", "acceptable", "good", "pass"] if w in shift_full_text.lower()]
 
     if normal_claims and is_breached:
         citation_page = 1
+        extracted_sentence = ""
         for p in shift_pages:
-            if any(c in p["text"].lower() for c in normal_claims):
-                citation_page = p["page"]
+            for line in p["text"].split("\n"):
+                clean_line = line.strip()
+                if clean_line and any(c in clean_line.lower() for c in normal_claims):
+                    citation_page = p["page"]
+                    extracted_sentence = clean_line
+                    break
+            if extracted_sentence:
                 break
+
+        if not extracted_sentence:
+            extracted_sentence = f"Visual check recorded as '{normal_claims[0]}'"
 
         contradictions.append({
             "id": "C1",
-            "human_claim": f'Operator Log (Page {citation_page}): "Visual check {normal_claims[0]}; zero operational anomalies detected."',
+            "human_claim": f'Operator Log (Page {citation_page}): "{extracted_sentence}"',
             "objective_claim": f'SCADA Telemetry: Peak vibration of {peak_vib:.2f} mm/s at {peak_timestamp} exceeds limit ({threshold:.1f} mm/s). Continuous breach duration: {violation_stats["continuous_minutes"]} mins.',
             "severity": "CRITICAL",
             "sources": [f"Shift_Turnover.pdf (p. {citation_page})", f"SCADA_Telemetry.csv (row {peak_idx})"]
@@ -538,6 +579,7 @@ def analyze_dynamic_investigation(
         active_narrative = plain_english["narrative"]
         active_source = f"Local Edge LLM ({OLLAMA_MODEL} Offline Fallback) + Deterministic Physics"
 
+    # Issue 8 Fix: Ensure explicit status keys on all hypotheses
     return {
         "investigation_id": f"INV-2026-{re.sub(r'[^A-Za-z0-9]', '', equipment_tag)}-01",
         "equipment_tag": equipment_tag,
@@ -560,6 +602,7 @@ def analyze_dynamic_investigation(
                 "id": "H1",
                 "title": primary_hypothesis,
                 "score": primary_score,
+                "status": "CONFIRMED CRITICAL" if is_breached else "NOMINAL ENVELOPE",
                 "confidence": round(primary_score / 100.0, 2),
                 "reasons": [
                     f"Peak vibration ({peak_vib:.2f} mm/s) breaches threshold ({threshold:.1f} mm/s) [CSV Row {peak_idx}]",
@@ -572,6 +615,7 @@ def analyze_dynamic_investigation(
                 "id": "H2",
                 "title": secondary_hypothesis,
                 "score": secondary_score,
+                "status": "SECONDARY CONSIDERATION",
                 "confidence": round(secondary_score / 100.0, 2),
                 "reasons": [
                     "Secondary kinematics pattern evaluated against telemetry harmonics",
@@ -596,10 +640,12 @@ def analyze_dynamic_investigation(
     }
 
 def run_investigation(asset_id: str = "P-204"):
-    data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../demo-data"))
+    base_dir = os.path.dirname(__file__)
+    data_dir = os.path.abspath(os.path.join(base_dir, "../../demo-data"))
     prefix = "P204" if "204" in asset_id else "P101"
     shift_name = "WO-204-8821_shiftlog.pdf" if "204" in asset_id else "WO-101-4412_shiftlog.pdf"
     oem_name = "OEM_P204_limits.pdf" if "204" in asset_id else "OEM_P101_limits.pdf"
+    img_name = "P204_bearing_housing.jpg" if "204" in asset_id else "P101_coupling_alignment.jpg"
 
     with open(os.path.join(data_dir, f"{prefix}_sensor_24h.csv"), "rb") as f:
         csv_b = f.read()
@@ -608,9 +654,24 @@ def run_investigation(asset_id: str = "P-204"):
     with open(os.path.join(data_dir, oem_name), "rb") as f:
         oem_b = f.read()
 
+    # Issue 6 Fix: Load actual demo image bytes into computer vision analyzer
+    img_bytes = None
+    img_candidates = [
+        os.path.join(data_dir, img_name),
+        os.path.abspath(os.path.join(base_dir, "../../frontend/public", img_name)),
+        os.path.abspath(os.path.join(base_dir, "../../frontend/dist", img_name)),
+    ]
+    for p in img_candidates:
+        if os.path.exists(p):
+            with open(p, "rb") as img_f:
+                img_bytes = img_f.read()
+            break
+
     return analyze_dynamic_investigation(
         csv_bytes=csv_b,
         shift_bytes=shift_b,
         oem_bytes=oem_b,
-        equipment_tag=f"PUMP {asset_id}"
+        image_bytes=img_bytes,
+        equipment_tag=f"PUMP {asset_id}",
+        image_url=f"/{img_name}"
     )

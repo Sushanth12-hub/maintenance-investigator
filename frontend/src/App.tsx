@@ -466,9 +466,22 @@ export default function App() {
     }
   };
 
-  const openAuditReport = () => {
+  const openAuditReport = async () => {
     sound.playBlip(1200);
-    window.open(`/api/investigate/report?asset=${equipmentTag.includes("101") ? "P-101" : "P-204"}`, "_blank");
+    if (!data) return;
+    try {
+      const response = await axios.post("/api/investigate/report-dynamic", data, {
+        headers: { "Content-Type": "application/json" }
+      });
+      const reportWindow = window.open("", "_blank");
+      if (reportWindow) {
+        reportWindow.document.open();
+        reportWindow.document.write(response.data);
+        reportWindow.document.close();
+      }
+    } catch {
+      window.open(`/api/investigate/report?asset=${equipmentTag.includes("101") ? "P-101" : "P-204"}`, "_blank");
+    }
   };
 
   const renderStatusCell = (status: string, label: string) => {
@@ -1875,7 +1888,18 @@ export default function App() {
                   </div>
                   <div className="bg-[#F8FAFC] p-3 rounded-md border border-[#CBD5E1]">
                     <span className="text-[#64748B] text-[10px] block font-bold">Source CSV Rows</span>
-                    <span className="font-bold text-[#0284C7]">Rows: [{activeMetric.source_rows?.join(", ")}]</span>
+                    <span
+  className="font-bold text-[#0284C7] truncate block text-[11px]"
+  title={Array.isArray(activeMetric?.source_rows) ? activeMetric.source_rows.join(", ") : ""}
+>
+  Rows: [
+    {Array.isArray(activeMetric?.source_rows)
+      ? activeMetric.source_rows.length > 6
+        ? `${activeMetric.source_rows.slice(0, 4).join(", ")} ... (${activeMetric.source_rows.length} rows total)`
+        : activeMetric.source_rows.join(", ")
+      : String(activeMetric?.source_rows ?? "N/A")}
+  ]
+</span>
                   </div>
                 </div>
 

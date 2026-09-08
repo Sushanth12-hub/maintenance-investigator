@@ -29,14 +29,24 @@
     if not contradictions_html:
         contradictions_html = "<p style='color:#059669; font-weight:600;'>No hard human-vs-sensor contradictions detected.</p>"
 
+    # Issue 8 Fix: Distinct styling based on explicit status key
     hypotheses_html = ""
-    for h in hypotheses:
+    for idx, h in enumerate(hypotheses):
         reasons_html = "".join([f"<li>{r}</li>" for r in h.get("reasons", [])])
+        status_val = h.get("status", "CONFIRMED CRITICAL" if idx == 0 else "SECONDARY CONSIDERATION")
+        is_primary = idx == 0 or "CRITICAL" in status_val.upper() or "CONFIRMED" in status_val.upper()
+        badge_bg = "#FFE4E6" if is_primary else "#E0F2FE"
+        badge_text = "#BE123C" if is_primary else "#0369A1"
+        border_color = "#FDA4AF" if is_primary else "#CBD5E1"
+
         hypotheses_html += f"""
-        <div style="border:1px solid #CBD5E1; border-radius:6px; padding:12px; margin-bottom:10px; background:#F8FAFC;">
+        <div style="border:1px solid {border_color}; border-radius:6px; padding:14px; margin-bottom:12px; background:#F8FAFC;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <strong style="color:#003366; font-size:14px;">{h.get('title', 'Unknown')}</strong>
-                <span style="background:#E0F2FE; color:#0369A1; font-weight:bold; padding:2px 8px; border-radius:4px; font-size:12px;">{h.get('score', 0)}% MATCH</span>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="background:{badge_bg}; color:{badge_text}; font-weight:bold; padding:2px 8px; border-radius:4px; font-size:11px; font-family:monospace;">{status_val}</span>
+                    <span style="background:#E0F2FE; color:#0369A1; font-weight:bold; padding:2px 8px; border-radius:4px; font-size:12px; font-family:monospace;">{h.get('score', 0)}% MATCH</span>
+                </div>
             </div>
             <ul style="margin:8px 0 0 16px; color:#475569; font-size:12px; line-height:1.5;">{reasons_html}</ul>
         </div>
@@ -56,6 +66,7 @@
         </div>
         """
 
+    # Issue 7 Fix: Consistent 0.40 °C/h criteria in HTML
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
